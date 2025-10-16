@@ -1,0 +1,39 @@
+=== POKER GAME ERROR LOG ===
+Timestamp: 2025-10-16 21:41:50
+Error: State status not OK (StateStatus.LowBet)
+
+Stack trace:
+NoneType: None
+
+
+=== GAME STATE ===
+Stage: Stage.Preflop
+Pot: $51.31
+Button position: Player 1
+Current player: Player 3
+Min bet: $14.44
+
+Community cards: None
+
+=== PLAYER STATES ===
+Player 0: $185.56 - Bet: $14.44 - Active
+  Hand: K♣ 9♥
+Player 1: $185.56 - Bet: $14.44 - Active
+  Hand: Q♥ J♦
+Player 2: $185.56 - Bet: $14.44 - Active
+  Hand: 8♦ 8♥
+Player 3: $198.00 - Bet: $2.00 - Active
+  Hand: 5♣ Q♦
+Player 4: $197.00 - Bet: $3.00 - Active
+  Hand: 8♣ A♥
+Player 5: $197.00 - Bet: $3.00 - Active
+  Hand: 4♥ A♠
+
+=== ERROR-CAUSING ACTION ===
+Action: ActionEnum.Raise $7.22
+
+=== LEGAL ACTIONS ===
+[ActionEnum.Fold, ActionEnum.Call, ActionEnum.Raise]
+
+=== PREVIOUS ACTION ===
+Action: ActionEnum.Call
