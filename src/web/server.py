@@ -41,17 +41,40 @@ CURRENT_STATE = None
 
 # ---------- 游戏状态转JSON ----------
 def serialize_state(state):
-    """把 poker 状态对象转换成可前端显示的 JSON 格式"""
+    """把 poker 状态对象转换成可前端显示的 JSON 格式，并打印调试日志"""
 
+    print("\n=== [DEBUG] serialize_state() 被调用 ===")
+    try:
+        stage_val = getattr(state, "stage", None)
+        community_raw = getattr(state, "community", None)
+        board_raw = getattr(state, "board", None)
+        table_obj = getattr(state, "table", None)
+        table_board_raw = getattr(table_obj, "board", None) if table_obj else None
+
+        print(f"[阶段] {stage_val}")
+        print(f"[community] {community_raw}")
+        print(f"[board] {board_raw}")
+        print(f"[table.board] {table_board_raw}")
+
+        if community_raw:
+            print(f"[community 长度] {len(community_raw)}")
+        elif board_raw:
+            print(f"[board 长度] {len(board_raw)}")
+        elif table_board_raw:
+            print(f"[table.board 长度] {len(table_board_raw)}")
+        else:
+            print("[公共牌] 当前为空 (未翻牌阶段或pokers无此字段)")
+    except Exception as e:
+        print("⚠️ serialize_state 日志异常:", e)
+
+    # ---------- 内部工具 ----------
     def card_to_str(card):
         """把 pokers.Card 转换为可视字符"""
         try:
-            # 有些版本 pokers.Card 没公开 rank/suit，可以转成字符串或访问属性
             if hasattr(card, "rank") and hasattr(card, "suit"):
                 rank = str(card.rank)
                 suit_idx = card.suit
             else:
-                # 兼容 fallback：转成字符串（例如 'AS', 'QH'）
                 s = str(card)
                 rank = s[0].upper()
                 suit_char = s[-1].lower()
@@ -72,6 +95,7 @@ def serialize_state(state):
             print("⚠️ card_to_str error:", e)
             return "??"
 
+    # ---------- 玩家信息 ----------
     players = []
     for i, p in enumerate(state.players_state):
         hand_strs = [card_to_str(c) for c in getattr(p, "hand", [])]
@@ -82,37 +106,52 @@ def serialize_state(state):
             "hand": hand_strs
         })
 
+    # ---------- 公共牌 ----------
     community_cards = []
     try:
-        community_cards = [card_to_str(c) for c in getattr(state, "community", [])]
-    except Exception:
-        pass
+        if getattr(state, "community", None):
+            community_cards = [card_to_str(c) for c in state.community]
+        elif getattr(state, "board", None):
+            community_cards = [card_to_str(c) for c in state.board]
+        elif getattr(getattr(state, "table", None), "board", None):
+            community_cards = [card_to_str(c) for c in state.table.board]
+        else:
+            community_cards = []
+    except Exception as e:
+        print("⚠️ community_cards error:", e)
+        community_cards = []
 
+    # ---------- 合法动作 ----------
     legal_actions = []
     try:
         legal_actions = [str(a) for a in getattr(state, "legal_actions", [])]
-    except Exception:
-        pass
+    except Exception as e:
+        print("⚠️ legal_actions error:", e)
 
+    # ---------- 底池 ----------
     pot_value = getattr(state, "pot", 0)
     if hasattr(pot_value, "value"):
         pot_value = pot_value.value
 
+    # ---------- 打包结果 ----------
     data = {
         "pot": pot_value,
         "players": players,
         "community": community_cards,
         "legal_actions": legal_actions,
         "current_player": getattr(state, "current_player", -1),
-        "final_state": getattr(state, "final_state", False)
+        "final_state": getattr(state, "final_state", False),
+        "stage": str(getattr(state, "stage", ""))  # 前端可用来判断阶段
     }
 
-    # ✅ 打印一次转换后的 JSON（不递归调用自己）
-    print("=== DEBUG JSON ===")
+    # ---------- 打印 JSON ----------
     import json
+    print("=== [DEBUG JSON 输出] ===")
     print(json.dumps(data, indent=2, ensure_ascii=False))
+    print("=== [DEBUG JSON 结束] ===")
 
     return data
+
 
 
 
