@@ -43,7 +43,7 @@ def serialize_state(state: State):
         "board": [str(c) for c in getattr(state, "community", [])],
         "pot": getattr(state, "pot", 0),
         "current_player": getattr(state, "current_player", 0),
-        "legal_actions": [a.name for a in getattr(state, "legal_actions", [])],
+        "legal_actions": [str(a) for a in getattr(state, "legal_actions", [])],
         "final_state": getattr(state, "final_state", False),
         "winner": [],
         "players": []
@@ -59,7 +59,10 @@ def serialize_state(state: State):
         })
 
     if getattr(state, "final_state", False):
-        data["winner"] = [i for i, p in enumerate(state.players_state) if getattr(p, "reward", 0) > 0]
+        data["winner"] = [
+            i for i, p in enumerate(state.players_state)
+            if getattr(p, "reward", 0) > 0
+        ]
 
     return data
 
