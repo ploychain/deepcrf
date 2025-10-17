@@ -1,49 +1,77 @@
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 import torch
-import numpy as np
 from tqdm import trange
+import numpy as np
+import pokers as pkrs
 
-from pokers import ActionEnum, Stage, StateStatus
-from src.training.deep_cfr import DeepCFRNet
-from src.training.poker_env_wrapper import PokerEnvWrapper
+from src.core.deep_cfr import DeepCFRAgent
+from src.agents.random_agent import RandomAgent
+from src.utils.settings import set_strict_checking
 
-def evaluate_vs_random(model_path, num_games=1000, device="cpu"):
-    print(f"Loading model from {model_path}")
-    model = DeepCFRNet()
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
+def evaluate_vs_random(checkpoint_path, num_games=500, num_players=6, device=None, strict=False):
+    """
+    Evaluate a trained DeepCFR agent against random opponents.
+    """
+    set_strict_checking(strict)
 
-    env = PokerEnvWrapper()
-    total_profit = np.zeros(env.num_players)
-    print(f"Evaluating {num_games} games...")
+    device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
 
-    for g in trange(num_games):
-        env.reset()
-        while not env.is_done():
-            player = env.current_player
-            legal_actions = env.get_legal_actions()
+    print(f"Loading checkpoint: {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path, map_location=device)
 
-            if player == 0:
-                # DeepCFR agent
-                state = env.get_state_tensor(player).to(device)
-                with torch.no_grad():
-                    logits = model(state)
-                probs = torch.softmax(logits, dim=-1).cpu().numpy().flatten()
-                probs = probs[:len(legal_actions)]
-                probs /= probs.sum()
-                action = np.random.choice(len(legal_actions), p=probs)
-            else:
-                # Random agent
-                action = np.random.choice(len(legal_actions))
+    agent = DeepCFRAgent(player_id=0, num_players=num_players, device=device)
+    agent.advantage_net.load_state_dict(checkpoint['advantage_net'])
+    agent.strategy_net.load_state_dict(checkpoint['strategy_net'])
 
-            env.step(legal_actions[action])
+    random_agents = [RandomAgent(i) for i in range(num_players)]
 
-        total_profit += env.get_profits()
+    total_profit = 0
+    completed_games = 0
 
-    print("\nAverage profit per player:")
-    for pid, p in enumerate(total_profit / num_games):
-        print(f"Player {pid}: {p:.2f}")
+    for game in trange(num_games):
+        try:
+            state = pkrs.State.from_seed(
+                n_players=num_players,
+                button=game % num_players,
+                sb=1,
+                bb=2,
+                stake=200.0,
+                seed=game
+            )
 
-    print(f"\nDeepCFR average profit vs randoms: {total_profit[0]/num_games:.2f}")
+            while not state.final_state:
+                current_player = state.current_player
+                if current_player == agent.player_id:
+                    action = agent.choose_action(state)
+                else:
+                    action = random_agents[current_player].choose_action(state)
+
+                new_state = state.apply_action(action)
+                if new_state.status != pkrs.StateStatus.Ok:
+                    print(f"WARNING: Invalid state ({new_state.status}) in game {game}")
+                    break
+                state = new_state
+
+            if state.final_state:
+                profit = state.players_state[agent.player_id].reward
+                total_profit += profit
+                completed_games += 1
+
+        except Exception as e:
+            print(f"Error in game {game}: {e}")
+
+    if completed_games == 0:
+        print("No valid games completed!")
+        return 0.0
+
+    avg_profit = total_profit / completed_games
+    print(f"\nAverage profit per game: {avg_profit:.2f} ({completed_games}/{num_games} completed)")
+    return avg_profit
+
 
 if __name__ == "__main__":
-    evaluate_vs_random("models/deepcfr/deep_cfr_iter_100.pt", num_games=1000, device="cuda")
+    ckpt = "models/checkpoint_iter_100.pt"  # 你可以改成任意 checkpoint 文件路径
+    evaluate_vs_random(ckpt, num_games=1000, num_players=6, strict=False)
