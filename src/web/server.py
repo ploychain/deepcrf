@@ -40,11 +40,11 @@ CURRENT_STATE = None
 def serialize_state(state: State):
     """将游戏状态转换成可前端显示的JSON"""
     data = {
-        "board": [str(c) for c in state.board],
-        "pot": state.pot,
-        "current_player": state.current_player,
-        "legal_actions": [a.name for a in state.legal_actions],
-        "final_state": state.final_state,
+        "board": [str(c) for c in getattr(state, "community", [])],
+        "pot": getattr(state, "pot", 0),
+        "current_player": getattr(state, "current_player", 0),
+        "legal_actions": [a.name for a in getattr(state, "legal_actions", [])],
+        "final_state": getattr(state, "final_state", False),
         "winner": [],
         "players": []
     }
@@ -52,16 +52,17 @@ def serialize_state(state: State):
     for i, p in enumerate(state.players_state):
         data["players"].append({
             "id": i,
-            "stack": p.stack,
-            "bet": p.bet,
-            "active": p.active,
-            "hand": [str(c) for c in p.hand] if i == 0 else ["🂠", "🂠"]
+            "stack": getattr(p, "stack", 0),
+            "bet": getattr(p, "bet", 0),
+            "active": getattr(p, "active", False),
+            "hand": [str(c) for c in getattr(p, "hand", [])] if i == 0 else ["🂠", "🂠"]
         })
 
-    if state.final_state:
-        data["winner"] = [i for i, p in enumerate(state.players_state) if p.reward > 0]
+    if getattr(state, "final_state", False):
+        data["winner"] = [i for i, p in enumerate(state.players_state) if getattr(p, "reward", 0) > 0]
 
     return data
+
 
 
 # ---------- 路由 ----------
