@@ -58,6 +58,7 @@ function renderState(s) {
     const seat = document.getElementById("player-" + i);
     if (!seat) return;
 
+    // ✅ 保留原始结构
     seat.innerHTML = `
       <div class="name">${i === 0 ? "你 (Player 0)" : "AI 玩家 " + i}</div>
       <div class="stack">筹码: ${(p.stack || 0).toFixed(2)}</div>
@@ -67,8 +68,23 @@ function renderState(s) {
     const h = seat.querySelector(".hand");
     const cards = p.hand || [];
 
-    if (i === 0) {
-      // 显示玩家自己的牌
+    // ✅ 新增：弃牌状态显示
+    if (!p.active) seat.classList.add("folded");
+    else seat.classList.remove("folded");
+
+    // ✅ 新增：摊牌逻辑
+    if (s.final_state && cards.length > 0 && p.active) {
+      // 游戏结束时翻开所有仍在局内的手牌
+      cards.forEach(txt => {
+        const d = document.createElement("div");
+        d.className = "card";
+        const val = normalizeCard(txt);
+        d.textContent = val;
+        if (val.includes("♥") || val.includes("♦")) d.classList.add("red");
+        h.appendChild(d);
+      });
+    } else if (i === 0) {
+      // 玩家自己，始终显示自己的牌
       cards.forEach(txt => {
         const d = document.createElement("div");
         d.className = "card";
@@ -78,7 +94,7 @@ function renderState(s) {
         h.appendChild(d);
       });
     } else {
-      // AI 玩家显示背面
+      // 其他 AI 在对局中显示背面
       for (let j = 0; j < 2; j++) {
         const d = document.createElement("div");
         d.className = "card card-back";
@@ -116,6 +132,7 @@ function renderState(s) {
     end.style.display = "none";
   }
 }
+
 
 // ===================== 扑克牌文本修复 =====================
 function normalizeCard(txt) {

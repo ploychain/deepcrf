@@ -109,6 +109,24 @@ html, body {
   text-shadow: 0 0 12px #ffd700;
 }
 
+.player.folded {
+  opacity: 0.5;
+  filter: grayscale(80%);
+  position: relative;
+}
+.player.folded::after {
+  content: "弃牌";
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: red;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+
 /* ======== 六人环形布局 ======== */
 #player-0 { bottom: 4%; left: 50%; transform: translateX(-50%); }       /* 自己 */
 #player-1 { bottom: 18%; left: 12%; }                                   /* 左下 */

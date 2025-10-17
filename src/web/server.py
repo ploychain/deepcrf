@@ -72,11 +72,13 @@ def serialize_state(state):
     for i, p in enumerate(state.players_state):
         hand_cards = getattr(p, "hand", [])
         hand_str = [card_to_str(c) for c in hand_cards]
+        active = bool(getattr(p, "active", True))
         players.append({
             "id": i,
             "name": f"Player {i}",
             "stack": getattr(p, "stake", 0),
-            "hand": hand_str
+            "hand": hand_str,
+            "active": active,
         })
         print(f"玩家 {i} 手牌: {hand_str}")
 
