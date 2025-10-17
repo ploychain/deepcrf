@@ -42,7 +42,6 @@ def serialize_state(state):
     def card_to_str(card):
         try:
             s = str(card)
-            # pokers 通常输出类似 'Ah', 'Td', '2c'，转成带符号的花色
             rank = s[0].upper()
             suit_char = s[-1].lower()
             suits = {'s': '♠', 'h': '♥', 'd': '♦', 'c': '♣'}
@@ -77,11 +76,7 @@ def serialize_state(state):
     if hasattr(pot_value, "value"):
         pot_value = pot_value.value
 
-    print("=== DEBUG JSON ===")
-    import json
-    print(json.dumps(serialize_state(CURRENT_STATE), indent=2, ensure_ascii=False))
-
-    return {
+    data = {
         "pot": pot_value,
         "players": players,
         "community": community_cards,
@@ -89,6 +84,14 @@ def serialize_state(state):
         "current_player": getattr(state, "current_player", -1),
         "final_state": getattr(state, "final_state", False)
     }
+
+    # ✅ 打印一次转换后的 JSON（不递归调用自己）
+    print("=== DEBUG JSON ===")
+    import json
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+
+    return data
+
 
 
 
