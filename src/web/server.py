@@ -149,11 +149,17 @@ def act():
     if not CURRENT_STATE:
         return jsonify({"error": "Game not started"}), 400
 
-    # 获取玩家动作
+    # --- 玩家动作 ---
     data = request.get_json()
     action_id = data.get("action_id", 0)
-    legal = getattr(CURRENT_STATE, "legal_actions", [])
+    legal = CURRENT_STATE.legal_actions
+    print("\n================= 玩家请求动作 =================")
+    print(f"当前玩家: {CURRENT_STATE.current_player}")
+    print(f"合法动作: {legal}")
+    print(f"接收到的 action_id = {action_id}")
+
     if not legal:
+        print("❌ 无合法动作，直接返回")
         return jsonify({"error": "No legal actions"}), 400
 
     try:
@@ -164,28 +170,46 @@ def act():
     print(f"🧍‍♂️ 你执行动作: {player_action}")
     CURRENT_STATE = CURRENT_STATE.apply_action(player_action)
 
-    # === 让 AI 自动执行多轮（安全循环） ===
+    print("➡️ 执行动作后状态:")
+    print(f"final_state = {CURRENT_STATE.final_state}")
+    print(f"current_player = {CURRENT_STATE.current_player}")
+    print(f"status = {CURRENT_STATE.status}")
+    print(f"legal_actions = {CURRENT_STATE.legal_actions}")
+    print(f"pot = {CURRENT_STATE.pot}")
+    print("================================================\n")
+
+    # === 让 AI 自动执行多轮 ===
     max_steps = 30
     step = 0
-
     while (
         not CURRENT_STATE.final_state
         and CURRENT_STATE.current_player != 0
         and len(CURRENT_STATE.legal_actions) > 0
         and step < max_steps
     ):
+        print(f"🤖 [AI循环第 {step+1} 步] 当前玩家 = {CURRENT_STATE.current_player}")
+        print(f"合法动作 = {CURRENT_STATE.legal_actions}")
         ai_action = AI_AGENT.choose_action(CURRENT_STATE)
         print(f"🤖 AI 玩家 {CURRENT_STATE.current_player} 执行动作: {ai_action}")
+
         new_state = CURRENT_STATE.apply_action(ai_action)
 
         if new_state.status != StateStatus.Ok:
-            print(f"⚠️ 非法动作：{new_state.status}")
+            print(f"⚠️ 非法动作：{new_state.status} → 中断AI循环")
+            print(f"当前底池: {new_state.pot}, 当前玩家: {new_state.current_player}")
             break
 
         CURRENT_STATE = new_state
+        print(f"✅ AI 执行后 -> 当前玩家: {CURRENT_STATE.current_player}")
         step += 1
 
+    print(f"🧾 AI 动作循环结束: 共执行 {step} 步")
+    print(f"final_state={CURRENT_STATE.final_state}, current_player={CURRENT_STATE.current_player}")
+    print(f"legal_actions={CURRENT_STATE.legal_actions}")
+    print("================================================\n")
+
     return jsonify(serialize_state(CURRENT_STATE))
+
 
 
 
