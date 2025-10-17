@@ -224,22 +224,20 @@ def act():
 
     print(f"你执行动作: {selected_enum}")
 
-    # ✅ 修复：构造真正的 Action 对象
-    if selected_enum == ActionEnum.Raise:
-        player_action = Action(ActionEnum.Raise, amount=10.0)  # 默认加注 10，可后续前端输入控制
+    # ✅ 玩家动作
+    if isinstance(selected_enum, ActionEnum):
+        if selected_enum == ActionEnum.Raise:
+            player_action = Action(ActionEnum.Raise, amount=10.0)
+        else:
+            player_action = Action(selected_enum)
+    elif isinstance(selected_enum, Action):
+        player_action = selected_enum
     else:
-        player_action = Action(selected_enum)
+        return jsonify({"error": f"未知动作类型: {type(selected_enum)}"}), 400
 
-    # 应用动作
-    new_state = CURRENT_STATE.apply_action(player_action)
+    CURRENT_STATE = CURRENT_STATE.apply_action(player_action)
 
-    if new_state.status != StateStatus.Ok:
-        print(f"⚠️ 非法动作: {new_state.status}")
-        return jsonify({"error": f"Invalid state: {new_state.status}"}), 400
-
-    CURRENT_STATE = new_state
-
-    # 让 AI 继续自动行动直到轮到玩家0
+    # ✅ AI 连续执行
     step = 0
     while (
         not CURRENT_STATE.final_state
@@ -250,10 +248,17 @@ def act():
         ai_action_enum = AI_AGENT.choose_action(CURRENT_STATE)
         print(f"🤖 AI 玩家 {CURRENT_STATE.current_player} 执行动作: {ai_action_enum}")
 
-        if ai_action_enum == ActionEnum.Raise:
-            ai_action = Action(ActionEnum.Raise, amount=10.0)
+        # ✅ 判断返回类型，兼容 ActionEnum 或 Action
+        if isinstance(ai_action_enum, ActionEnum):
+            if ai_action_enum == ActionEnum.Raise:
+                ai_action = Action(ActionEnum.Raise, amount=10.0)
+            else:
+                ai_action = Action(ai_action_enum)
+        elif isinstance(ai_action_enum, Action):
+            ai_action = ai_action_enum
         else:
-            ai_action = Action(ai_action_enum)
+            print(f"⚠️ AI 返回未知类型: {type(ai_action_enum)}，跳过")
+            break
 
         new_state = CURRENT_STATE.apply_action(ai_action)
         if new_state.status != StateStatus.Ok:
