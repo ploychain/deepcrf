@@ -61,7 +61,9 @@ function renderState(s) {
     // ✅ 保留原始结构
     seat.innerHTML = `
   <div class="name">${i === 0 ? "你 (Player 0)" : "AI 玩家 " + i}</div>
-  <div class="stack">筹码: ${(p.stack || 0).toFixed(2)}</div>
+  <div class="stack">
+  ${p.active === false ? "（已弃牌）" : `筹码: ${(p.stack ?? 0).toFixed(2)}`}
+</div>
   <div class="hand"></div>
   <div class="status"></div>`;
     const h = seat.querySelector(".hand");
