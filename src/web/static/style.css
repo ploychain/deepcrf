@@ -45,36 +45,29 @@ html, body {
 
 /* ======== 扑克牌样式 ======== */
 .card {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  width: 110px;
-  height: 150px;
-  margin: 5px;
+  display: inline-block;
+  width: 70px;
+  height: 100px;
+  margin: 3px;
   border-radius: 10px;
-  font-size: 42px;
-  font-weight: bold;
+  font-size: 26px;
+  line-height: 100px;
+  text-align: center;
   background-color: white;
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+  font-weight: bold;
   color: black;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
-  transition: transform 0.2s;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
-.card:hover {
-  transform: scale(1.1);
+.card.red {
+  color: #e53935;
 }
 
 .card-back {
-  background: repeating-linear-gradient(
-    45deg,
-    #2a5d84,
-    #2a5d84 10px,
-    #1b3a52 10px,
-    #1b3a52 20px
-  );
+  background: repeating-linear-gradient(45deg, #2a5d84, #2a5d84 10px, #1b3a52 10px, #1b3a52 20px);
   color: transparent;
 }
+
 
 /* 玩家 0（自己）的牌更大一些 */
 #player-0 .card {
