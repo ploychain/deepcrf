@@ -1,0 +1,56 @@
+body {
+  background: radial-gradient(circle, #084, #031);
+  color: #fff;
+  font-family: "Segoe UI", sans-serif;
+  text-align: center;
+  overflow-x: hidden;
+}
+#table {
+  position: relative;
+  margin: 0 auto;
+  width: 800px;
+  height: 600px;
+  background: radial-gradient(circle, #064, #020);
+  border-radius: 50%;
+  box-shadow: 0 0 30px #000 inset;
+  padding: 30px;
+}
+.player {
+  position: absolute;
+  width: 100%;
+}
+.player.ai {
+  top: 40px;
+}
+.player.human {
+  bottom: 40px;
+}
+.name {
+  font-weight: bold;
+}
+.cards {
+  font-size: 40px;
+  margin: 10px;
+}
+.board {
+  margin-top: 200px;
+  font-size: 50px;
+}
+button {
+  background: #222;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  margin: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}
+button:hover {
+  background: #444;
+}
+#winner {
+  font-size: 24px;
+  font-weight: bold;
+  color: gold;
+}
