@@ -137,10 +137,6 @@ def start():
         seed=random.randint(0, 100000)
     )
 
-    print("=== DEBUG HANDS ===")
-    for i, p in enumerate(CURRENT_STATE.players_state):
-        print(f"Player {i} hand:", p.hand)
-    print("===================")
 
     return jsonify(serialize_state(CURRENT_STATE))
 
