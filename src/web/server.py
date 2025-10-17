@@ -156,36 +156,41 @@ def act():
     # 获取玩家动作
     data = request.get_json()
     action_id = data.get("action_id", 0)
-    legal = CURRENT_STATE.legal_actions
+    legal = getattr(CURRENT_STATE, "legal_actions", [])
     if not legal:
         return jsonify({"error": "No legal actions"}), 400
 
-    # 玩家执行动作
     try:
         player_action = legal[action_id]
     except IndexError:
         player_action = legal[0]
 
-    print(f"你执行动作: {player_action}")
+    print(f"🧍‍♂️ 你执行动作: {player_action}")
     CURRENT_STATE = CURRENT_STATE.apply_action(player_action)
 
-    # 如果AI能动，AI自动连续行动
-    while (not CURRENT_STATE.final_state and
-           CURRENT_STATE.current_player != 0 and
-           len(CURRENT_STATE.legal_actions) > 0):
+    # === 让 AI 自动执行多轮（安全循环） ===
+    max_steps = 30
+    step = 0
 
+    while (
+        not CURRENT_STATE.final_state
+        and CURRENT_STATE.current_player != 0
+        and len(CURRENT_STATE.legal_actions) > 0
+        and step < max_steps
+    ):
         ai_action = AI_AGENT.choose_action(CURRENT_STATE)
-        print(f"AI 玩家 {CURRENT_STATE.current_player} 执行动作: {ai_action}")
+        print(f"🤖 AI 玩家 {CURRENT_STATE.current_player} 执行动作: {ai_action}")
         new_state = CURRENT_STATE.apply_action(ai_action)
 
-        # 防止错误状态卡死
         if new_state.status != StateStatus.Ok:
             print(f"⚠️ 非法动作：{new_state.status}")
             break
 
         CURRENT_STATE = new_state
+        step += 1
 
     return jsonify(serialize_state(CURRENT_STATE))
+
 
 
 if __name__ == "__main__":
