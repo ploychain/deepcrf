@@ -75,8 +75,17 @@ def start():
     global CURRENT_STATE
     print("♠️ 开始新局")
 
+    import random
     # 初始化一局游戏
-    CURRENT_STATE = State.from_seed(n_players=6, sb=1, bb=2, stake=200.0)
+    CURRENT_STATE = State.from_seed(
+        n_players=6,
+        button=random.randint(0, 5),  # 随机庄家位置
+        sb=1,
+        bb=2,
+        stake=200.0,
+        seed=random.randint(0, 10000)  # 随机种子确保每局不同
+    )
+
     return jsonify(serialize_state(CURRENT_STATE))
 
 
