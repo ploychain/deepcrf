@@ -35,31 +35,49 @@ CURRENT_STATE = None
 
 # ---------- 状态转JSON ----------
 def serialize_state(state):
-    """将State对象转换成前端可用的JSON"""
+    """将State对象转换为前端可用的JSON并打印牌信息"""
+    print("\n=== [DEBUG] serialize_state() 调用 ===")
+
     def card_to_str(card):
+        """安全地转换 pokers.Card 为可读符号字符串"""
         try:
-            suits_map = ["♣", "♦", "♥", "♠"]
+            if hasattr(card, "rank") and hasattr(card, "suit"):
+                rank_val = int(card.rank)
+                suit_val = int(card.suit)
+            else:
+                s = str(card)
+                print(f"⚠️ 未标准Card对象: {s}")
+                return s
+
+            # 映射
             ranks_map = {
                 2: "2", 3: "3", 4: "4", 5: "5", 6: "6",
                 7: "7", 8: "8", 9: "9", 10: "10",
                 11: "J", 12: "Q", 13: "K", 14: "A"
             }
-            return f"{ranks_map.get(card.rank, card.rank)}{suits_map[int(card.suit) % 4]}"
-        except Exception:
+            suits_map = {0: "♣", 1: "♦", 2: "♥", 3: "♠"}
+
+            rank_str = ranks_map.get(rank_val, str(rank_val))
+            suit_str = suits_map.get(suit_val % 4, "?")
+            return f"{rank_str}{suit_str}"
+        except Exception as e:
+            print(f"⚠️ card_to_str 出错: {e} ({card})")
             return "??"
 
-    # 玩家信息
+    # ---------- 玩家 ----------
     players = []
     for i, p in enumerate(state.players_state):
-        hand = [card_to_str(c) for c in getattr(p, "hand", [])]
+        hand_cards = getattr(p, "hand", [])
+        hand_str = [card_to_str(c) for c in hand_cards]
         players.append({
             "id": i,
             "name": f"Player {i}",
             "stack": getattr(p, "stake", 0),
-            "hand": hand
+            "hand": hand_str
         })
+        print(f"玩家 {i} 手牌: {hand_str}")
 
-    # 公共牌
+    # ---------- 公共牌 ----------
     community_cards = []
     for attr in ("community", "board", "public_cards"):
         if hasattr(state, attr):
@@ -68,10 +86,12 @@ def serialize_state(state):
                 community_cards = [card_to_str(c) for c in cards]
                 break
 
-    # 合法动作
+    print(f"公共牌: {community_cards if community_cards else '[]'}")
+
+    # ---------- 合法动作 ----------
     legal_actions = [str(a) for a in getattr(state, "legal_actions", [])]
 
-    # 底池
+    # ---------- 底池 ----------
     pot_value = getattr(state, "pot", 0)
     if hasattr(pot_value, "value"):
         pot_value = pot_value.value
@@ -86,7 +106,14 @@ def serialize_state(state):
         "stage": str(getattr(state, "stage", "")),
     }
 
+    # ---------- 打印完整JSON ----------
+    import json
+    print("=== [DEBUG JSON 输出] ===")
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+    print("=== [DEBUG JSON 结束] ===")
+
     return data
+
 
 # ---------- 路由 ----------
 @app.route("/")
