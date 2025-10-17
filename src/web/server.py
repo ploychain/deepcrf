@@ -101,6 +101,15 @@ def serialize_state(state):
     if hasattr(pot_value, "value"):
         pot_value = pot_value.value
 
+    # ---------- 判断赢家 ----------
+    winner_ids = []
+    if getattr(state, "final_state", False):
+        rewards = [getattr(p, "reward", 0) for p in state.players_state]
+        max_reward = max(rewards)
+        if max_reward > 0:
+            winner_ids = [i for i, r in enumerate(rewards) if r == max_reward]
+        print(f"🏆 检测到赢家: {winner_ids}, 奖励分布: {rewards}")
+
     data = {
         "pot": pot_value,
         "players": players,
@@ -109,6 +118,7 @@ def serialize_state(state):
         "current_player": getattr(state, "current_player", -1),
         "final_state": getattr(state, "final_state", False),
         "stage": str(getattr(state, "stage", "")),
+        "winner": winner_ids,
     }
 
     # ---------- 打印完整JSON ----------
