@@ -173,7 +173,15 @@ def index():
 @app.route("/start", methods=["POST"])
 def start():
     global CURRENT_STATE
-    CURRENT_STATE = State.from_seed(n_players=6, sb=1, bb=2, button=0, stake=200.0, seed=None)
+    import random
+    CURRENT_STATE = State.from_seed(
+        n_players=6,
+        sb=1,
+        bb=2,
+        button=0,
+        stake=200.0,
+        seed=random.randint(0, 100000)
+    )
 
     print("=== DEBUG HANDS ===")
     for i, p in enumerate(CURRENT_STATE.players_state):
