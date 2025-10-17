@@ -1,16 +1,16 @@
-// ---------------------- 游戏启动 ----------------------
+// ===================== 启动游戏 =====================
 async function startGame() {
   try {
     const res = await fetch("/start", { method: "POST" });
     const s = await res.json();
-    console.log("✅ Game started:", s);
+    console.log("✅ 游戏开始:", s);
     renderState(s);
   } catch (err) {
     console.error("❌ startGame error:", err);
   }
 }
 
-// ---------------------- 玩家动作 ----------------------
+// ===================== 玩家动作 =====================
 async function act(action_id) {
   try {
     const res = await fetch("/act", {
@@ -19,36 +19,36 @@ async function act(action_id) {
       body: JSON.stringify({ action_id })
     });
     const s = await res.json();
-    console.log("✅ Action result:", s);
+    console.log("✅ 玩家动作:", s);
     renderState(s);
   } catch (err) {
     console.error("❌ act error:", err);
   }
 }
 
-// ---------------------- 渲染界面 ----------------------
+// ===================== 渲染游戏状态 =====================
 function renderState(s) {
   if (!s) {
-    console.error("❌ renderState called with null or undefined");
+    console.error("❌ renderState received null state");
     return;
   }
 
-  // --- 公共牌 ---
+  // ---- 公共牌 ----
   const comm = document.getElementById("community");
   comm.innerHTML = "";
-  const board = s.community || []; // ✅ 修复字段名
+  const board = s.community || [];
   board.forEach(txt => {
     const c = document.createElement("div");
     c.className = "card";
-    c.textContent = txt;
+    c.textContent = normalizeCard(txt);
     comm.appendChild(c);
   });
 
-  // --- 底池 ---
+  // ---- 底池 ----
   const pot = document.getElementById("pot");
   pot.textContent = "底池: " + (s.pot ? s.pot.toFixed(2) : "0");
 
-  // --- 玩家区域 ---
+  // ---- 玩家 ----
   if (!s.players || !Array.isArray(s.players)) {
     console.error("❌ s.players invalid:", s);
     return;
@@ -72,7 +72,9 @@ function renderState(s) {
       cards.forEach(txt => {
         const d = document.createElement("div");
         d.className = "card";
-        d.textContent = txt;
+        const val = normalizeCard(txt);
+        d.textContent = val;
+        if (val.includes("♥") || val.includes("♦")) d.classList.add("red");
         h.appendChild(d);
       });
     } else {
@@ -90,7 +92,7 @@ function renderState(s) {
     else seat.classList.remove("active");
   });
 
-  // --- 操作按钮 ---
+  // ---- 控制按钮 ----
   const ctrls = document.getElementById("controls");
   ctrls.innerHTML = "";
   if (!s.final_state && s.current_player === 0 && s.legal_actions) {
@@ -102,7 +104,7 @@ function renderState(s) {
     });
   }
 
-  // --- 结束提示 ---
+  // ---- 结束提示 ----
   const end = document.getElementById("endMessage");
   if (!end) return;
 
@@ -115,7 +117,29 @@ function renderState(s) {
   }
 }
 
-// ---------------------- 页面初始化 ----------------------
+// ===================== 扑克牌文本修复 =====================
+function normalizeCard(txt) {
+  if (!txt) return "??";
+  // 去掉 CardRank.R 前缀与点号
+  txt = txt.replaceAll("CardRank.R", "")
+           .replaceAll("CardRank.", "")
+           .replaceAll("R", "")
+           .replaceAll(".", "")
+           .trim();
+
+  // 提取 rank 与花色
+  const match = txt.match(/([0-9TJQKA]+)([♠♥♦♣])?/);
+  if (match) {
+    const rankMap = { T: "10", J: "J", Q: "Q", K: "K", A: "A" };
+    const rank = rankMap[match[1]] || match[1];
+    const suit = match[2] || "";
+    return rank + suit;
+  }
+
+  return txt;
+}
+
+// ===================== 初始化 =====================
 window.onload = () => {
   const startBtn = document.getElementById("startBtn");
   if (startBtn) startBtn.onclick = startGame;
