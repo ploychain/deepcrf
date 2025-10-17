@@ -38,37 +38,130 @@ CURRENT_STATE = None
 
 # ---------- 游戏状态转JSON ----------
 def serialize_state(state):
-    def card_to_str(c):
-        # 明确提取 rank + suit
-        if hasattr(c, "rank") and hasattr(c, "suit"):
-            return f"{c.rank}{c.suit}"
-        if hasattr(c, "label"):
-            return c.label
-        try:
-            return str(c)
-        except Exception:
+    """把游戏状态打包成前端需要的 JSON（鲁棒地把 Card → 'A♠' 这种）"""
+
+    # ----- 工具：rank/suit 映射 -----
+    RANK_STR = {1:"A", 14:"A", 13:"K", 12:"Q", 11:"J", 10:"T",
+                9:"9", 8:"8", 7:"7", 6:"6", 5:"5", 4:"4", 3:"3", 2:"2"}
+    SUIT_STR = {
+        "S":"♠", "SPADE":"♠", "SPADES":"♠", 3:"♠",
+        "H":"♥", "HEART":"♥", "HEARTS":"♥", 2:"♥",
+        "D":"♦", "DIAMOND":"♦", "DIAMONDS":"♦", 1:"♦",
+        "C":"♣", "CLUB":"♣", "CLUBS":"♣", 0:"♣",
+    }
+    SUITS_52 = {0:"♣", 1:"♦", 2:"♥", 3:"♠"}  # 用于0..51编码
+    RANKS_52 = {0:"2",1:"3",2:"4",3:"5",4:"6",5:"7",6:"8",7:"9",8:"T",9:"J",10:"Q",11:"K",12:"A"}
+
+    def card_to_unicode(c):
+        """最大兼容把一张牌转成 'A♠' 这类文本"""
+        # 字符串本身（已经是 "A♠" 或 "🂠"）
+        if isinstance(c, str):
+            return c
+
+        # 0..51 的整型索引
+        if isinstance(c, int) and 0 <= c <= 51:
+            suit = c // 13
+            rank = c % 13
+            return f"{RANKS_52.get(rank,'?')}{SUITS_52.get(suit,'?')}"
+
+        # dict 形式 {"rank":...,"suit":...}
+        if isinstance(c, dict):
+            r = c.get("rank"); s = c.get("suit")
+            return f"{_rank_to_str(r)}{_suit_to_str(s)}"
+
+        # 一般对象：尽量读 rank / suit / label
+        r = getattr(c, "rank", None)
+        s = getattr(c, "suit", None)
+        if r is not None and s is not None:
+            return f"{_rank_to_str(r)}{_suit_to_str(s)}"
+
+        lab = getattr(c, "label", None)
+        if lab:
+            return str(lab)
+
+        # 兜底：str(c)（如果还是 <builtins.Card …>，前端会显示 ?）
+        text = str(c)
+        if text.startswith("<") and "object at" in text:
             return "?"
+        return text
+
+    def _rank_to_str(r):
+        # Enum / 对象：优先 name / value
+        name = getattr(r, "name", None)
+        if name:
+            return RANK_STR.get(_maybe_int(name), name)
+        val = getattr(r, "value", None)
+        if val is not None:
+            return RANK_STR.get(_maybe_int(val), str(val))
+        # 直接 int/str
+        if isinstance(r, int):
+            return RANK_STR.get(r, str(r))
+        if isinstance(r, str):
+            # "A","K","Q","J","T","2".. 直接返回
+            return r.upper()
+        return "?"
+
+    def _suit_to_str(s):
+        name = getattr(s, "name", None)
+        if name:
+            return SUIT_STR.get(name.upper(), name)
+        val = getattr(s, "value", None)
+        if val is not None:
+            return SUIT_STR.get(val, str(val))
+        if isinstance(s, str):
+            return SUIT_STR.get(s.upper(), s)
+        if isinstance(s, int):
+            return SUIT_STR.get(s, str(s))
+        return "?"
+
+    def _maybe_int(x):
+        try:
+            return int(x)
+        except Exception:
+            return x
+
+    # --- 取公共区（兼容 board/community） ---
+    community = getattr(state, "community", None)
+    if community is None:
+        community = getattr(state, "board", [])
+
+    # --- legal actions 文本化 ---
+    legal_acts = []
+    for a in getattr(state, "legal_actions", []):
+        nm = getattr(a, "name", None)
+        legal_acts.append(nm if nm else str(a))
+
+    # --- players / 手牌（只展示玩家0的） ---
+    players = []
+    for i, ps in enumerate(state.players_state):
+        raw_hand = getattr(ps, "hand", [])
+        hand = [card_to_unicode(c) for c in raw_hand] if i == 0 else ["🂠", "🂠"]
+        players.append({
+            "id": i,
+            "stack": getattr(ps, "stack", 0.0),
+            "bet": getattr(ps, "bet", 0.0),
+            "active": getattr(ps, "active", True),
+            "hand": hand
+        })
 
     data = {
-        "board": [card_to_str(c) for c in getattr(state, "community", [])],
-        "pot": getattr(state, "pot", 0),
-        "current_player": getattr(state, "current_player", 0),
-        "final_state": getattr(state, "final_state", False),
-        "legal_actions": [a.name if hasattr(a, "name") else str(a) for a in getattr(state, "legal_actions", [])],
-        "players": [],
+        "board": [card_to_unicode(c) for c in community],
+        "pot": float(getattr(state, "pot", 0.0)),
+        "current_player": int(getattr(state, "current_player", 0)),
+        "final_state": bool(getattr(state, "final_state", False)),
+        "legal_actions": legal_acts if (not getattr(state, "final_state", False) and int(getattr(state, "current_player", 0)) == 0) else [],
+        "players": players,
+        "winner": []
     }
 
-    for i, p in enumerate(state.players_state):
-        cards = [card_to_str(c) for c in getattr(p, "hand", [])]
-        data["players"].append({
-            "id": i,
-            "stack": getattr(p, "stack", 0),
-            "bet": getattr(p, "bet", 0),
-            "active": getattr(p, "active", True),
-            # 只显示自己的手牌
-            "hand": cards if i == 0 else ["🂠", "🂠"]
-        })
+    if data["final_state"]:
+        data["winner"] = [
+            i for i, ps in enumerate(state.players_state)
+            if float(getattr(ps, "reward", 0.0)) > 0.0
+        ]
+
     return data
+
 
 
 # ---------- 路由 ----------
