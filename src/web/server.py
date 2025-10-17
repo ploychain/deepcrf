@@ -78,7 +78,7 @@ def serialize_state(state):
         players.append({
             "id": i,
             "name": f"Player {i}",
-            "stack": getattr(p, "stack", 0),
+            "stack": getattr(p, "stake", 0),
             "hand": hand_strs
         })
 
@@ -108,6 +108,9 @@ def serialize_state(state):
     }
 
     # ✅ 打印一次转换后的 JSON（不递归调用自己）
+    print("=== DEBUG JSON ===")
+    import json
+    print(json.dumps(data, indent=2, ensure_ascii=False))
 
     return data
 
