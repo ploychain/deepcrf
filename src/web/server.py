@@ -173,20 +173,15 @@ def index():
 @app.route("/start", methods=["POST"])
 def start():
     global CURRENT_STATE
-    print("♠️ 开始新局")
+    CURRENT_STATE = State.from_seed(n_players=6, sb=1, bb=2, button=0, stake=200.0, seed=None)
 
-    import random
-    # 初始化一局游戏
-    CURRENT_STATE = State.from_seed(
-        n_players=6,
-        button=random.randint(0, 5),  # 随机庄家位置
-        sb=1,
-        bb=2,
-        stake=200.0,
-        seed=random.randint(0, 10000)  # 随机种子确保每局不同
-    )
+    print("=== DEBUG HANDS ===")
+    for i, p in enumerate(CURRENT_STATE.players_state):
+        print(f"Player {i} hand:", p.hand)
+    print("===================")
 
     return jsonify(serialize_state(CURRENT_STATE))
+
 
 
 @app.route("/act", methods=["POST"])
