@@ -77,6 +77,10 @@ def serialize_state(state):
     if hasattr(pot_value, "value"):
         pot_value = pot_value.value
 
+    print("=== DEBUG JSON ===")
+    import json
+    print(json.dumps(serialize_state(CURRENT_STATE), indent=2, ensure_ascii=False))
+
     return {
         "pot": pot_value,
         "players": players,
