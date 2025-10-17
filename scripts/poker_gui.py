@@ -355,18 +355,25 @@ class PokerTable(QWidget):
     def update_pot(self, amount):
         """Update the pot display"""
         self.pot_label.setText(f"Pot: ${amount:.2f}")
-    
+
     def update_stage(self, stage):
         """Update the game stage display"""
+        # 兼容枚举类型和整数类型的 stage
+        try:
+            stage_val = int(stage) if not isinstance(stage, int) else stage
+        except Exception:
+            stage_val = getattr(stage, "value", stage)
+
         stage_names = {
-            pkrs.Stage.Preflop: "Preflop",
-            pkrs.Stage.Flop: "Flop",
-            pkrs.Stage.Turn: "Turn",
-            pkrs.Stage.River: "River",
-            pkrs.Stage.Showdown: "Showdown"
+            0: "Preflop",
+            1: "Flop",
+            2: "Turn",
+            3: "River",
+            4: "Showdown"
         }
-        self.stage_label.setText(f"Stage: {stage_names.get(stage, str(stage))}")
-    
+
+        self.stage_label.setText(f"Stage: {stage_names.get(stage_val, str(stage))}")
+
     def update_players(self, player_states, current_player, button_position, show_all_cards=False):
         """Update all player displays"""
         for i, player in enumerate(self.players):
