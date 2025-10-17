@@ -1,56 +1,77 @@
 body {
-  background: radial-gradient(circle, #084, #031);
+  background: radial-gradient(circle at center, #054, #021);
   color: #fff;
   font-family: "Segoe UI", sans-serif;
+  overflow: hidden;
   text-align: center;
-  overflow-x: hidden;
 }
 #table {
   position: relative;
-  margin: 0 auto;
-  width: 800px;
+  margin: 40px auto;
+  width: 900px;
   height: 600px;
-  background: radial-gradient(circle, #064, #020);
+  background: radial-gradient(circle, #083, #031);
   border-radius: 50%;
-  box-shadow: 0 0 30px #000 inset;
-  padding: 30px;
+  box-shadow: 0 0 60px #000 inset;
 }
-.player {
+#board {
   position: absolute;
-  width: 100%;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 40px;
+  letter-spacing: 10px;
 }
-.player.ai {
-  top: 40px;
+#pot {
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  color: gold;
 }
-.player.human {
-  bottom: 40px;
+
+/* 玩家座位布局 */
+.seat {
+  position: absolute;
+  width: 140px;
+  text-align: center;
+  transition: all 0.3s;
 }
-.name {
+.seat .name {
   font-weight: bold;
 }
-.cards {
-  font-size: 40px;
-  margin: 10px;
+.seat .cards {
+  font-size: 35px;
 }
-.board {
-  margin-top: 200px;
-  font-size: 50px;
+.seat .chips {
+  font-size: 14px;
+  color: #ffb;
+}
+
+.bottom       { bottom: 30px;  left: 50%; transform: translateX(-50%); }
+.bottom-right { bottom: 100px; right: 100px; }
+.top-right    { top: 80px; right: 130px; }
+.top          { top: 40px; left: 50%; transform: translateX(-50%); }
+.top-left     { top: 80px; left: 130px; }
+.bottom-left  { bottom: 100px; left: 100px; }
+
+/* 操作按钮区 */
+#action-bar {
+  margin-top: 20px;
 }
 button {
-  background: #222;
+  background: #262;
   color: white;
-  padding: 10px 20px;
+  padding: 12px 25px;
   border: none;
   border-radius: 8px;
-  margin: 5px;
+  margin: 6px;
   cursor: pointer;
   font-size: 16px;
+  box-shadow: 0 0 10px #030;
 }
 button:hover {
-  background: #444;
-}
-#winner {
-  font-size: 24px;
-  font-weight: bold;
-  color: gold;
+  background: #393;
+  box-shadow: 0 0 15px #0f0;
 }
