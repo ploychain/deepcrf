@@ -38,9 +38,15 @@ CURRENT_STATE = None
 
 # ---------- 游戏状态转JSON ----------
 def serialize_state(state: State):
-    """将游戏状态转换成可前端显示的JSON"""
+    """修复牌面字符串和布局"""
+    def card_to_str(c):
+        try:
+            return str(c)
+        except Exception:
+            return getattr(c, "label", "?")
+
     data = {
-        "board": [str(c) for c in getattr(state, "community", [])],
+        "board": [card_to_str(c) for c in getattr(state, "community", [])],
         "pot": getattr(state, "pot", 0),
         "current_player": getattr(state, "current_player", 0),
         "legal_actions": [str(a) for a in getattr(state, "legal_actions", [])],
@@ -50,12 +56,19 @@ def serialize_state(state: State):
     }
 
     for i, p in enumerate(state.players_state):
+        hand_cards = []
+        for c in getattr(p, "hand", []):
+            try:
+                hand_cards.append(str(c))
+            except Exception:
+                hand_cards.append("?")
+
         data["players"].append({
             "id": i,
             "stack": getattr(p, "stack", 0),
             "bet": getattr(p, "bet", 0),
             "active": getattr(p, "active", False),
-            "hand": [str(c) for c in getattr(p, "hand", [])] if i == 0 else ["🂠", "🂠"]
+            "hand": hand_cards if i == 0 else ["🂠", "🂠"]
         })
 
     if getattr(state, "final_state", False):
@@ -65,6 +78,7 @@ def serialize_state(state: State):
         ]
 
     return data
+
 
 
 
