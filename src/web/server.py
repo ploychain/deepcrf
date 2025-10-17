@@ -39,7 +39,7 @@ def serialize_state(state):
     print("\n=== [DEBUG] serialize_state() 调用 ===")
 
     def card_to_str(card):
-        """安全地转换 pokers.Card 为可读符号字符串"""
+        """智能转换 pokers.Card → 扑克牌符号字符串"""
         try:
             if hasattr(card, "rank") and hasattr(card, "suit"):
                 rank_val = int(card.rank)
@@ -49,7 +49,10 @@ def serialize_state(state):
                 print(f"⚠️ 未标准Card对象: {s}")
                 return s
 
-            # 映射
+            # 动态修正 rank：如果是 0–12，则映射到 2–A
+            if 0 <= rank_val <= 12:
+                rank_val += 2
+
             ranks_map = {
                 2: "2", 3: "3", 4: "4", 5: "5", 6: "6",
                 7: "7", 8: "8", 9: "9", 10: "10",
