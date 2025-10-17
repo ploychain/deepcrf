@@ -1,30 +1,31 @@
-/* ======== 全局基础 ======== */
+/* ======== 全局基础样式 ======== */
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
   width: 100%;
   font-family: 'Segoe UI', 'Arial', sans-serif;
-  background: radial-gradient(circle at center, #004b2d 0%, #002a17 80%);
   color: white;
   overflow: hidden;
+  background: radial-gradient(circle at center, #00391f 0%, #00180d 80%);
 }
 
+/* ======== 桌面区域 ======== */
 #table {
   position: relative;
   width: 100vw;
   height: 100vh;
   background: radial-gradient(circle at center, #147a4a, #06381e);
   border-radius: 50%;
-  border: 10px solid #2b2b2b;
-  box-shadow: 0 0 80px rgba(0, 0, 0, 0.8);
+  border: 10px solid #1c1c1c;
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.7);
   overflow: hidden;
 }
 
 /* ======== 公共区：底池 + 公共牌 ======== */
 #community {
   position: absolute;
-  top: 50%;
+  top: 46%;
   left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
@@ -33,13 +34,13 @@ html, body {
 
 #pot {
   position: absolute;
-  top: 58%;
+  top: 54%;
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 24px;
   font-weight: bold;
   color: #ffeb3b;
-  text-shadow: 0 0 10px black;
+  text-shadow: 0 0 8px #000;
 }
 
 /* ======== 扑克牌样式 ======== */
@@ -47,16 +48,17 @@ html, body {
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  width: 120px;
-  height: 170px;
-  margin: 6px;
+  width: 110px;
+  height: 150px;
+  margin: 5px;
   border-radius: 10px;
-  font-size: 44px;
+  font-size: 42px;
   font-weight: bold;
   background-color: white;
   color: black;
   box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
   transition: transform 0.2s;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
 .card:hover {
@@ -74,7 +76,14 @@ html, body {
   color: transparent;
 }
 
-/* ======== 玩家区 ======== */
+/* 玩家 0（自己）的牌更大一些 */
+#player-0 .card {
+  width: 130px;
+  height: 180px;
+  font-size: 50px;
+}
+
+/* ======== 玩家信息区 ======== */
 .player {
   position: absolute;
   width: 200px;
@@ -107,22 +116,23 @@ html, body {
   text-shadow: 0 0 12px #ffd700;
 }
 
-/* ======== 环形分布六玩家 ======== */
-#player-0 { bottom: 5%; left: 50%; transform: translateX(-50%); }       /* 你自己 */
-#player-1 { bottom: 20%; left: 15%; }                                   /* 左下 */
-#player-2 { top: 40%; left: 5%; }                                       /* 左中 */
+/* ======== 六人环形布局 ======== */
+#player-0 { bottom: 4%; left: 50%; transform: translateX(-50%); }       /* 自己 */
+#player-1 { bottom: 18%; left: 12%; }                                   /* 左下 */
+#player-2 { top: 42%; left: 5%; }                                       /* 左中 */
 #player-3 { top: 5%; left: 50%; transform: translateX(-50%); }          /* 顶部 */
-#player-4 { top: 40%; right: 5%; }                                      /* 右中 */
-#player-5 { bottom: 20%; right: 15%; }                                  /* 右下 */
+#player-4 { top: 42%; right: 5%; }                                      /* 右中 */
+#player-5 { bottom: 18%; right: 12%; }                                  /* 右下 */
 
-/* ======== 动作按钮 ======== */
+/* ======== 操作按钮区 ======== */
 #controls {
   position: absolute;
-  bottom: 40px;
+  bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   gap: 25px;
+  z-index: 10;
 }
 
 button {
@@ -143,7 +153,7 @@ button:hover {
   background: linear-gradient(to bottom, #25b46d, #179856);
 }
 
-/* ======== 动作气泡提示 ======== */
+/* ======== 动作提示气泡 ======== */
 .action-bubble {
   display: inline-block;
   margin-top: 6px;
@@ -161,17 +171,7 @@ button:hover {
   100% { opacity: 0; }
 }
 
-/* ======== 动画与视觉 ======== */
-@keyframes chipMove {
-  from { transform: scale(0.5) translateY(30px); opacity: 0; }
-  to { transform: scale(1) translateY(0); opacity: 1; }
-}
-
-.chip {
-  animation: chipMove 0.4s ease-out;
-}
-
-/* ======== 结算提示 ======== */
+/* ======== 游戏结束提示 ======== */
 #endMessage {
   position: absolute;
   top: 45%;
@@ -184,4 +184,5 @@ button:hover {
   background: rgba(0,0,0,0.6);
   padding: 20px 40px;
   border-radius: 15px;
+  z-index: 20;
 }

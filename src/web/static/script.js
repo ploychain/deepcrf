@@ -1,106 +1,67 @@
-let currentState = null;
-
 async function startGame() {
   const res = await fetch("/start", { method: "POST" });
-  const data = await res.json();
-  currentState = data;
-  renderState(data);
+  const s = await res.json();
+  renderState(s);
 }
 
-async function act(actionIndex) {
-  if (!currentState) return;
-
+async function act(action_id) {
   const res = await fetch("/act", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action_id: actionIndex })
+    body: JSON.stringify({ action_id })
   });
-
-  const data = await res.json();
-  currentState = data;
-  renderState(data);
+  const s = await res.json();
+  renderState(s);
 }
 
-/* ======== 渲染游戏状态 ======== */
-function renderState(state) {
-  const table = document.getElementById("table");
-  table.innerHTML = ""; // 清空桌面
-
-  // --- 公共牌 ---
-  const communityDiv = document.createElement("div");
-  communityDiv.id = "community";
-  state.board.forEach(c => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.textContent = c;
-    communityDiv.appendChild(card);
-  });
-  table.appendChild(communityDiv);
-
-  // --- 底池 ---
-  const potDiv = document.createElement("div");
-  potDiv.id = "pot";
-  potDiv.textContent = "底池: " + state.pot.toFixed(2);
-  table.appendChild(potDiv);
-
-  // --- 玩家 ---
-  state.players.forEach(p => {
-    const playerDiv = document.createElement("div");
-    playerDiv.className = "player";
-    playerDiv.id = "player-" + p.id;
-    if (p.active) playerDiv.classList.add("active");
-
-    const name = document.createElement("div");
-    name.className = "name";
-    name.textContent = p.id === 0 ? "你 (Player 0)" : "AI 玩家 " + p.id;
-
-    const stack = document.createElement("div");
-    stack.className = "stack";
-    stack.textContent = "筹码: " + p.stack.toFixed(2);
-
-    const handDiv = document.createElement("div");
-    handDiv.className = "hand";
-    p.hand.forEach(cardStr => {
-      const card = document.createElement("div");
-      card.className = "card";
-      if (cardStr === "🂠") card.classList.add("card-back");
-      card.textContent = cardStr;
-      handDiv.appendChild(card);
-    });
-
-    playerDiv.appendChild(name);
-    playerDiv.appendChild(stack);
-    playerDiv.appendChild(handDiv);
-
-    table.appendChild(playerDiv);
+function renderState(s) {
+  const comm = document.getElementById("community");
+  comm.innerHTML = "";
+  s.board.forEach(txt => {
+    const c = document.createElement("div");
+    c.className = "card";
+    c.textContent = txt;
+    comm.appendChild(c);
   });
 
-  // --- 动作按钮（仅你能操作） ---
-  if (!state.final_state && state.current_player === 0) {
-    const controls = document.createElement("div");
-    controls.id = "controls";
-    state.legal_actions.forEach((action, idx) => {
-      const btn = document.createElement("button");
-      btn.textContent = action.replace("ActionEnum.", "");
-      btn.onclick = () => act(idx);
-      controls.appendChild(btn);
+  document.getElementById("pot").textContent = "底池: " + s.pot.toFixed(2);
+
+  for (let i = 0; i < s.players.length; i++) {
+    const p = s.players[i];
+    const seat = document.getElementById("player-" + i);
+    seat.innerHTML = `
+      <div class="name">${i === 0 ? "你 (Player 0)" : "AI 玩家 " + i}</div>
+      <div class="stack">筹码: ${p.stack.toFixed(2)}</div>
+      <div class="hand"></div>
+    `;
+    const h = seat.querySelector(".hand");
+    p.hand.forEach(txt => {
+      const d = document.createElement("div");
+      d.className = "card" + (txt === "🂠" ? " card-back" : "");
+      d.textContent = txt;
+      h.appendChild(d);
     });
-    table.appendChild(controls);
   }
 
-  // --- 若已结束 ---
-  if (state.final_state) {
-    const msg = document.createElement("div");
-    msg.style.position = "absolute";
-    msg.style.top = "45%";
-    msg.style.left = "50%";
-    msg.style.transform = "translate(-50%, -50%)";
-    msg.style.fontSize = "36px";
-    msg.style.fontWeight = "bold";
-    msg.style.color = "#ffeb3b";
-    msg.textContent = state.winner.includes(0) ? "🎉 你赢了！" : "😢 AI 赢了！";
-    table.appendChild(msg);
+  const ctrls = document.getElementById("controls");
+  ctrls.innerHTML = "";
+  if (!s.final_state && s.current_player === 0) {
+    s.legal_actions.forEach((name, idx) => {
+      const b = document.createElement("button");
+      b.textContent = name.replace("ActionEnum.", "");
+      b.onclick = () => act(idx);
+      ctrls.appendChild(b);
+    });
+  }
+
+  const end = document.getElementById("endMessage");
+  if (s.final_state) {
+    end.style.display = "block";
+    end.textContent = s.winner.includes(0) ? "🎉 你赢了!" : "😢 AI 赢了!";
+  } else {
+    end.style.display = "none";
   }
 }
 
+// 自动开局
 window.onload = startGame;

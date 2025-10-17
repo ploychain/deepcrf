@@ -1,28 +1,25 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-  <meta charset="UTF-8">
-  <title>AI 德州扑克</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8" />
+  <title>AI 德州扑克 - 研究版</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <div id="table">
-    <!-- 公共牌 -->
-    <div id="board"></div>
+    <div id="community"></div>
     <div id="pot"></div>
 
-    <!-- 六个玩家座位 -->
-    <div id="player-0" class="seat bottom"></div>
-    <div id="player-1" class="seat bottom-right"></div>
-    <div id="player-2" class="seat top-right"></div>
-    <div id="player-3" class="seat top"></div>
-    <div id="player-4" class="seat top-left"></div>
-    <div id="player-5" class="seat bottom-left"></div>
-  </div>
+    <div id="player-0" class="player"></div>
+    <div id="player-1" class="player"></div>
+    <div id="player-2" class="player"></div>
+    <div id="player-3" class="player"></div>
+    <div id="player-4" class="player"></div>
+    <div id="player-5" class="player"></div>
 
-  <!-- 操作区 -->
-  <div id="action-bar"></div>
-  <div id="info"></div>
+    <div id="controls"></div>
+    <div id="endMessage" style="display:none"></div>
+  </div>
 
   <script src="/static/script.js"></script>
 </body>
