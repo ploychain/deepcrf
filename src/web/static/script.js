@@ -93,8 +93,8 @@ function renderState(s) {
         if (val.includes("♥") || val.includes("♦")) d.classList.add("red");
         h.appendChild(d);
       });
-    } else if (i === 0) {
-      // 玩家自己，始终显示自己的牌
+    } else if (i === 0 || s.final_state) {
+      // ✅ 玩家自己 或 牌局结束时 — 显示真实手牌
       cards.forEach(txt => {
         const d = document.createElement("div");
         d.className = "card";
@@ -104,7 +104,7 @@ function renderState(s) {
         h.appendChild(d);
       });
     } else {
-      // 其他 AI 在对局中显示背面
+      // ✅ 进行中时的 AI 玩家 — 显示背面
       for (let j = 0; j < 2; j++) {
         const d = document.createElement("div");
         d.className = "card card-back";
