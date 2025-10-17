@@ -1,71 +1,106 @@
-let players = [];
+let currentState = null;
 
 async function startGame() {
-  const res = await fetch('/start', { method: 'POST' });
+  const res = await fetch("/start", { method: "POST" });
   const data = await res.json();
-  renderTable(data);
+  currentState = data;
+  renderState(data);
 }
 
-async function act(i) {
-  const res = await fetch('/act', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action_id: i })
+async function act(actionIndex) {
+  if (!currentState) return;
+
+  const res = await fetch("/act", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action_id: actionIndex })
   });
+
   const data = await res.json();
-  renderTable(data);
+  currentState = data;
+  renderState(data);
 }
 
-function renderTable(s) {
-  document.getElementById('board').innerText = s.board.join(' ') || "🂠🂠🂠";
-  document.getElementById('pot').innerText = `底池: ${s.pot.toFixed(2)}`;
+/* ======== 渲染游戏状态 ======== */
+function renderState(state) {
+  const table = document.getElementById("table");
+  table.innerHTML = ""; // 清空桌面
 
-  for (let i = 0; i < s.players.length; i++) {
-    const p = s.players[i];
-    const seat = document.getElementById(`player-${i}`);
-    if (!seat) continue;
+  // --- 公共牌 ---
+  const communityDiv = document.createElement("div");
+  communityDiv.id = "community";
+  state.board.forEach(c => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.textContent = c;
+    communityDiv.appendChild(card);
+  });
+  table.appendChild(communityDiv);
 
-    seat.innerHTML = `
-      <div class="name">玩家 ${i}${i === 0 ? " (你)" : ""}</div>
-      <div class="cards">${renderCards(i, s)}</div>
-      <div class="chips">筹码: ${p.stack.toFixed(0)}</div>
-    `;
-  }
+  // --- 底池 ---
+  const potDiv = document.createElement("div");
+  potDiv.id = "pot";
+  potDiv.textContent = "底池: " + state.pot.toFixed(2);
+  table.appendChild(potDiv);
 
-  const bar = document.getElementById('action-bar');
-  bar.innerHTML = '';
+  // --- 玩家 ---
+  state.players.forEach(p => {
+    const playerDiv = document.createElement("div");
+    playerDiv.className = "player";
+    playerDiv.id = "player-" + p.id;
+    if (p.active) playerDiv.classList.add("active");
 
-  if (s.final_state) {
-    document.getElementById('info').innerHTML =
-      `<h2>🏆 赢家: 玩家 ${s.winner.join(', ')}</h2>`;
-    return;
-  }
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = p.id === 0 ? "你 (Player 0)" : "AI 玩家 " + p.id;
 
-  if (s.current_player === 0 && s.legal_actions.length > 0) {
-    s.legal_actions.forEach((a, i) => {
-      const btn = document.createElement('button');
-      btn.innerText = a;
-      btn.onclick = () => act(i);
-      bar.appendChild(btn);
+    const stack = document.createElement("div");
+    stack.className = "stack";
+    stack.textContent = "筹码: " + p.stack.toFixed(2);
+
+    const handDiv = document.createElement("div");
+    handDiv.className = "hand";
+    p.hand.forEach(cardStr => {
+      const card = document.createElement("div");
+      card.className = "card";
+      if (cardStr === "🂠") card.classList.add("card-back");
+      card.textContent = cardStr;
+      handDiv.appendChild(card);
     });
-  } else {
-    document.getElementById('info').innerHTML = `等待 AI 动作...`;
+
+    playerDiv.appendChild(name);
+    playerDiv.appendChild(stack);
+    playerDiv.appendChild(handDiv);
+
+    table.appendChild(playerDiv);
+  });
+
+  // --- 动作按钮（仅你能操作） ---
+  if (!state.final_state && state.current_player === 0) {
+    const controls = document.createElement("div");
+    controls.id = "controls";
+    state.legal_actions.forEach((action, idx) => {
+      const btn = document.createElement("button");
+      btn.textContent = action.replace("ActionEnum.", "");
+      btn.onclick = () => act(idx);
+      controls.appendChild(btn);
+    });
+    table.appendChild(controls);
+  }
+
+  // --- 若已结束 ---
+  if (state.final_state) {
+    const msg = document.createElement("div");
+    msg.style.position = "absolute";
+    msg.style.top = "45%";
+    msg.style.left = "50%";
+    msg.style.transform = "translate(-50%, -50%)";
+    msg.style.fontSize = "36px";
+    msg.style.fontWeight = "bold";
+    msg.style.color = "#ffeb3b";
+    msg.textContent = state.winner.includes(0) ? "🎉 你赢了！" : "😢 AI 赢了！";
+    table.appendChild(msg);
   }
 }
 
-function renderCards(i, s) {
-  if (i === 0) {
-    // 玩家自己显示真实牌
-    return "🂡🂢"; // TODO: 后端返回真实手牌可替换
-  } else {
-    return "🂠🂠";
-  }
-}
-
-// 启动游戏
-window.onload = () => {
-  const btn = document.createElement('button');
-  btn.innerText = '🎮 开始新游戏';
-  btn.onclick = startGame;
-  document.getElementById('action-bar').appendChild(btn);
-};
+window.onload = startGame;

@@ -1,77 +1,150 @@
+/* ======== 全局样式 ======== */
 body {
-  background: radial-gradient(circle at center, #054, #021);
-  color: #fff;
-  font-family: "Segoe UI", sans-serif;
+  background: radial-gradient(circle at center, #0f5132, #062d19);
+  font-family: 'Segoe UI', sans-serif;
+  color: white;
   overflow: hidden;
-  text-align: center;
+  margin: 0;
+  padding: 0;
 }
+
 #table {
   position: relative;
-  margin: 40px auto;
-  width: 900px;
-  height: 600px;
-  background: radial-gradient(circle, #083, #031);
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at center, #147a4a, #06381e);
+  border: 10px solid #333;
   border-radius: 50%;
-  box-shadow: 0 0 60px #000 inset;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
 }
-#board {
+
+/* ======== 公共区：底池、公共牌 ======== */
+#community {
   position: absolute;
-  top: 45%;
+  top: 48%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 40px;
-  letter-spacing: 10px;
+  display: flex;
+  gap: 8px;
 }
+
 #pot {
   position: absolute;
-  top: 58%;
+  top: 55%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffeb3b;
+  text-shadow: 0 0 6px black;
+}
+
+/* ======== 玩家区域 ======== */
+.player {
+  position: absolute;
+  width: 180px;
+  text-align: center;
+  color: #fff;
+  transition: transform 0.2s ease;
+}
+
+.player .name {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.player .stack {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.player .hand {
+  margin-top: 8px;
+}
+
+.player.active {
+  transform: scale(1.05);
+  text-shadow: 0 0 8px #ffd700;
+}
+
+/* ======== 扑克牌 ======== */
+.card {
+  display: inline-block;
+  width: 90px;
+  height: 130px;
+  margin: 4px;
+  border-radius: 10px;
+  font-size: 36px;
+  line-height: 130px;
+  text-align: center;
+  background-color: white;
+  box-shadow: 0 0 10px rgba(0,0,0,0.6);
+  color: black;
+  font-weight: bold;
+  transition: transform 0.2s;
+}
+
+.card:hover {
+  transform: scale(1.15);
+}
+
+.card-back {
+  background: repeating-linear-gradient(45deg, #2a5d84, #2a5d84 10px, #1b3a52 10px, #1b3a52 20px);
+  color: transparent;
+}
+
+/* ======== 玩家布局（环形分布） ======== */
+#player-0 { bottom: 5%; left: 50%; transform: translateX(-50%); }
+#player-1 { bottom: 20%; left: 10%; }
+#player-2 { top: 30%; left: 10%; }
+#player-3 { top: 5%; left: 50%; transform: translateX(-50%); }
+#player-4 { top: 30%; right: 10%; }
+#player-5 { bottom: 20%; right: 10%; }
+
+/* ======== 动作按钮 ======== */
+#controls {
+  position: absolute;
+  bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
-  color: gold;
+  display: flex;
+  gap: 20px;
 }
 
-/* 玩家座位布局 */
-.seat {
-  position: absolute;
-  width: 140px;
-  text-align: center;
-  transition: all 0.3s;
-}
-.seat .name {
-  font-weight: bold;
-}
-.seat .cards {
-  font-size: 35px;
-}
-.seat .chips {
-  font-size: 14px;
-  color: #ffb;
-}
-
-.bottom       { bottom: 30px;  left: 50%; transform: translateX(-50%); }
-.bottom-right { bottom: 100px; right: 100px; }
-.top-right    { top: 80px; right: 130px; }
-.top          { top: 40px; left: 50%; transform: translateX(-50%); }
-.top-left     { top: 80px; left: 130px; }
-.bottom-left  { bottom: 100px; left: 100px; }
-
-/* 操作按钮区 */
-#action-bar {
-  margin-top: 20px;
-}
 button {
-  background: #262;
-  color: white;
-  padding: 12px 25px;
+  padding: 12px 20px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  background: linear-gradient(to bottom, #1c8f52, #116b43);
   border: none;
   border-radius: 8px;
-  margin: 6px;
   cursor: pointer;
-  font-size: 16px;
-  box-shadow: 0 0 10px #030;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+  transition: all 0.2s;
 }
+
 button:hover {
-  background: #393;
-  box-shadow: 0 0 15px #0f0;
+  background: linear-gradient(to bottom, #21a15c, #15874a);
+  transform: scale(1.05);
+}
+
+/* ======== 动作气泡 ======== */
+.action-bubble {
+  background: rgba(0,0,0,0.7);
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: #ffeb3b;
+  display: inline-block;
+  margin-top: 8px;
+  animation: fadeOut 2s forwards;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
 }
