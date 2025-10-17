@@ -201,6 +201,8 @@ def start():
 
 
 
+from pokers import Action, ActionEnum
+
 @app.route("/act", methods=["POST"])
 def act():
     global CURRENT_STATE
@@ -208,66 +210,62 @@ def act():
     if not CURRENT_STATE:
         return jsonify({"error": "Game not started"}), 400
 
-    # --- 玩家动作 ---
     data = request.get_json()
     action_id = data.get("action_id", 0)
     legal = CURRENT_STATE.legal_actions
-    print("\n================= 玩家请求动作 =================")
-    print(f"当前玩家: {CURRENT_STATE.current_player}")
-    print(f"合法动作: {legal}")
-    print(f"接收到的 action_id = {action_id}")
 
     if not legal:
-        print("❌ 无合法动作，直接返回")
         return jsonify({"error": "No legal actions"}), 400
 
     try:
-        player_action = legal[action_id]
+        selected_enum = legal[action_id]
     except IndexError:
-        player_action = legal[0]
+        selected_enum = legal[0]
 
-    print(f"🧍‍♂️ 你执行动作: {player_action}")
-    CURRENT_STATE = CURRENT_STATE.apply_action(player_action)
+    print(f"你执行动作: {selected_enum}")
 
-    print("➡️ 执行动作后状态:")
-    print(f"final_state = {CURRENT_STATE.final_state}")
-    print(f"current_player = {CURRENT_STATE.current_player}")
-    print(f"status = {CURRENT_STATE.status}")
-    print(f"legal_actions = {CURRENT_STATE.legal_actions}")
-    print(f"pot = {CURRENT_STATE.pot}")
-    print("================================================\n")
+    # ✅ 修复：构造真正的 Action 对象
+    if selected_enum == ActionEnum.Raise:
+        player_action = Action(ActionEnum.Raise, amount=10.0)  # 默认加注 10，可后续前端输入控制
+    else:
+        player_action = Action(selected_enum)
 
-    # === 让 AI 自动执行多轮 ===
-    max_steps = 30
+    # 应用动作
+    new_state = CURRENT_STATE.apply_action(player_action)
+
+    if new_state.status != StateStatus.Ok:
+        print(f"⚠️ 非法动作: {new_state.status}")
+        return jsonify({"error": f"Invalid state: {new_state.status}"}), 400
+
+    CURRENT_STATE = new_state
+
+    # 让 AI 继续自动行动直到轮到玩家0
     step = 0
     while (
         not CURRENT_STATE.final_state
         and CURRENT_STATE.current_player != 0
         and len(CURRENT_STATE.legal_actions) > 0
-        and step < max_steps
+        and step < 50
     ):
-        print(f"🤖 [AI循环第 {step+1} 步] 当前玩家 = {CURRENT_STATE.current_player}")
-        print(f"合法动作 = {CURRENT_STATE.legal_actions}")
-        ai_action = AI_AGENT.choose_action(CURRENT_STATE)
-        print(f"🤖 AI 玩家 {CURRENT_STATE.current_player} 执行动作: {ai_action}")
+        ai_action_enum = AI_AGENT.choose_action(CURRENT_STATE)
+        print(f"🤖 AI 玩家 {CURRENT_STATE.current_player} 执行动作: {ai_action_enum}")
+
+        if ai_action_enum == ActionEnum.Raise:
+            ai_action = Action(ActionEnum.Raise, amount=10.0)
+        else:
+            ai_action = Action(ai_action_enum)
 
         new_state = CURRENT_STATE.apply_action(ai_action)
-
         if new_state.status != StateStatus.Ok:
-            print(f"⚠️ 非法动作：{new_state.status} → 中断AI循环")
-            print(f"当前底池: {new_state.pot}, 当前玩家: {new_state.current_player}")
+            print(f"⚠️ AI 非法动作: {new_state.status}")
             break
 
         CURRENT_STATE = new_state
-        print(f"✅ AI 执行后 -> 当前玩家: {CURRENT_STATE.current_player}")
         step += 1
 
-    print(f"🧾 AI 动作循环结束: 共执行 {step} 步")
-    print(f"final_state={CURRENT_STATE.final_state}, current_player={CURRENT_STATE.current_player}")
-    print(f"legal_actions={CURRENT_STATE.legal_actions}")
-    print("================================================\n")
-
+    print(f"✅ AI 执行 {step} 步后，轮到玩家 {CURRENT_STATE.current_player}")
     return jsonify(serialize_state(CURRENT_STATE))
+
 
 
 
