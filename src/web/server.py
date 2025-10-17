@@ -128,17 +128,49 @@ def index():
 def start():
     global CURRENT_STATE
     import random
-    CURRENT_STATE = State.from_seed(
-        n_players=6,
-        sb=1,
-        bb=2,
-        button=0,
-        stake=200.0,
-        seed=random.randint(0, 100000)
-    )
+    print("\n================= [DEBUG] /start 被调用 =================")
 
+    try:
+        print("[1] 准备调用 State.from_seed() ...")
+        CURRENT_STATE = State.from_seed(
+            n_players=6,
+            sb=1,
+            bb=2,
+            button=0,
+            stake=200.0,
+            seed=random.randint(0, 100000)
+        )
+        print("[2] State.from_seed() 返回成功")
+    except Exception as e:
+        print("❌ [ERROR] State.from_seed 抛出异常：", e)
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"State.from_seed failed: {str(e)}"}), 500
 
-    return jsonify(serialize_state(CURRENT_STATE))
+    # 这里加确认 CURRENT_STATE 的类型
+    print(f"[3] CURRENT_STATE 类型: {type(CURRENT_STATE)}")
+
+    try:
+        print("=== DEBUG HANDS ===")
+        for i, p in enumerate(CURRENT_STATE.players_state):
+            print(f"Player {i} hand:", p.hand)
+        print("===================")
+    except Exception as e:
+        print("❌ [ERROR] 打印玩家手牌失败：", e)
+        import traceback
+        traceback.print_exc()
+
+    try:
+        print("[4] 准备调用 serialize_state()")
+        data = serialize_state(CURRENT_STATE)
+        print("[5] serialize_state() 成功，准备返回 JSON")
+        return jsonify(data)
+    except Exception as e:
+        print("❌ [ERROR] serialize_state 出错：", e)
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"serialize_state failed: {str(e)}"}), 500
+
 
 
 
