@@ -44,32 +44,28 @@ def serialize_state(state):
     """把 poker 状态对象转换成可前端显示的 JSON 格式"""
 
     def card_to_str(card):
-        """把 pokers.Card 转换为可视字符"""
+        """把 pokers.Card 转换为 '7♥' / 'A♣' 格式"""
         try:
-            # 有些版本 pokers.Card 没公开 rank/suit，可以转成字符串或访问属性
-            if hasattr(card, "rank") and hasattr(card, "suit"):
-                rank = str(card.rank)
-                suit_idx = card.suit
-            else:
-                # 兼容 fallback：转成字符串（例如 'AS', 'QH'）
-                s = str(card)
-                rank = s[0].upper()
-                suit_char = s[-1].lower()
-                suits = {'s': '♠', 'h': '♥', 'd': '♦', 'c': '♣'}
-                suit = suits.get(suit_char, '?')
-                return f"{rank}{suit}"
+            s = str(card)
+            # 匹配 CardRank.RA♥ 或 CardRank.R7♦ 等情况
+            if "CardRank.R" in s:
+                s = s.replace("CardRank.R", "")  # 去掉前缀
+            # 去掉可能多余的点号或空格
+            s = s.replace(".", "").strip()
 
-            ranks = {
-                "2": "2", "3": "3", "4": "4", "5": "5", "6": "6",
-                "7": "7", "8": "8", "9": "9", "10": "10",
-                "11": "J", "12": "Q", "13": "K", "14": "A"
-            }
-            suits_map = ["♣", "♦", "♥", "♠"]
-            rank_str = ranks.get(str(rank), str(rank))
-            suit_str = suits_map[int(suit_idx) % 4]
-            return f"{rank_str}{suit_str}"
+            # 如果最后一个字符是花色符号（♠♥♦♣），那前面是点数
+            if s[-1] in ["♠", "♥", "♦", "♣"]:
+                rank = s[:-1]
+                suit = s[-1]
+            else:
+                rank = s
+                suit = "?"
+            # 把 T / J / Q / K / A 显示得更清晰
+            rank_map = {"T": "10", "J": "J", "Q": "Q", "K": "K", "A": "A"}
+            rank = rank_map.get(rank, rank)
+            return f"{rank}{suit}"
         except Exception as e:
-            print("⚠️ card_to_str error:", e)
+            print(f"⚠️ card_to_str error: {e}")
             return "??"
 
     players = []
