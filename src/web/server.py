@@ -76,7 +76,7 @@ def serialize_state(state):
     if hasattr(pot_value, "value"):
         pot_value = pot_value.value
 
-    return {
+    data = {
         "pot": pot_value,
         "players": players,
         "community": community_cards,
@@ -86,6 +86,7 @@ def serialize_state(state):
         "stage": str(getattr(state, "stage", "")),
     }
 
+    return data
 
 # ---------- 路由 ----------
 @app.route("/")
