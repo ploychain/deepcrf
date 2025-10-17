@@ -111,20 +111,15 @@ html, body {
 
 .player.folded {
   opacity: 0.5;
-  filter: grayscale(80%);
-  position: relative;
+  filter: grayscale(60%);
 }
-.player.folded::after {
-  content: "弃牌";
-  position: absolute;
-  top: -20px;
-  left: 0;
-  right: 0;
-  text-align: center;
+.player .status {
   color: red;
   font-weight: bold;
-  font-size: 18px;
+  text-align: center;
+  margin-top: 4px;
 }
+
 
 
 /* ======== 六人环形布局 ======== */
