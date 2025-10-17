@@ -37,49 +37,38 @@ CURRENT_STATE = None
 
 
 # ---------- 游戏状态转JSON ----------
-def serialize_state(state: State):
-    """修复牌面字符串和布局"""
+def serialize_state(state):
     def card_to_str(c):
+        # 明确提取 rank + suit
+        if hasattr(c, "rank") and hasattr(c, "suit"):
+            return f"{c.rank}{c.suit}"
+        if hasattr(c, "label"):
+            return c.label
         try:
             return str(c)
         except Exception:
-            return getattr(c, "label", "?")
+            return "?"
 
     data = {
         "board": [card_to_str(c) for c in getattr(state, "community", [])],
         "pot": getattr(state, "pot", 0),
         "current_player": getattr(state, "current_player", 0),
-        "legal_actions": [str(a) for a in getattr(state, "legal_actions", [])],
         "final_state": getattr(state, "final_state", False),
-        "winner": [],
-        "players": []
+        "legal_actions": [a.name if hasattr(a, "name") else str(a) for a in getattr(state, "legal_actions", [])],
+        "players": [],
     }
 
     for i, p in enumerate(state.players_state):
-        hand_cards = []
-        for c in getattr(p, "hand", []):
-            try:
-                hand_cards.append(str(c))
-            except Exception:
-                hand_cards.append("?")
-
+        cards = [card_to_str(c) for c in getattr(p, "hand", [])]
         data["players"].append({
             "id": i,
             "stack": getattr(p, "stack", 0),
             "bet": getattr(p, "bet", 0),
-            "active": getattr(p, "active", False),
-            "hand": hand_cards if i == 0 else ["🂠", "🂠"]
+            "active": getattr(p, "active", True),
+            # 只显示自己的手牌
+            "hand": cards if i == 0 else ["🂠", "🂠"]
         })
-
-    if getattr(state, "final_state", False):
-        data["winner"] = [
-            i for i, p in enumerate(state.players_state)
-            if getattr(p, "reward", 0) > 0
-        ]
-
     return data
-
-
 
 
 # ---------- 路由 ----------

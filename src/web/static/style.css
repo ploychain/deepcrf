@@ -108,12 +108,12 @@ html, body {
 }
 
 /* ======== 环形分布六玩家 ======== */
-#player-0 { bottom: 3%; left: 50%; transform: translateX(-50%); }       /* 自己 */
-#player-1 { bottom: 18%; left: 15%; }                                   /* 左下 */
+#player-0 { bottom: 5%; left: 50%; transform: translateX(-50%); }       /* 你自己 */
+#player-1 { bottom: 20%; left: 15%; }                                   /* 左下 */
 #player-2 { top: 40%; left: 5%; }                                       /* 左中 */
 #player-3 { top: 5%; left: 50%; transform: translateX(-50%); }          /* 顶部 */
 #player-4 { top: 40%; right: 5%; }                                      /* 右中 */
-#player-5 { bottom: 18%; right: 15%; }                                  /* 右下 */
+#player-5 { bottom: 20%; right: 15%; }                                  /* 右下 */
 
 /* ======== 动作按钮 ======== */
 #controls {
