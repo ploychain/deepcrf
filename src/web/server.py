@@ -242,6 +242,9 @@ def start():
 
 from pokers import Action, ActionEnum
 
+from pokers import Action, ActionEnum, Card, Stage
+import random
+
 @app.route("/act", methods=["POST"])
 def act():
     global CURRENT_STATE
@@ -308,7 +311,38 @@ def act():
         step += 1
 
     print(f"✅ AI 执行 {step} 步后，轮到玩家 {CURRENT_STATE.current_player}")
+
+    # ---------- 自动推进到 Flop（如果没有发公共牌） ----------
+    if getattr(CURRENT_STATE, "stage", None) == Stage.Preflop:
+        print("⚙️ 检测到仍在 Preflop，手动生成 Flop 公共牌 ...")
+        if not hasattr(CURRENT_STATE, "community"):
+            CURRENT_STATE.community = []
+
+        # 生成三张随机牌
+        ranks = list(range(2, 15))  # 2 - 14
+        suits = list(range(4))      # 0-3
+        seen = set()
+
+        def random_card():
+            while True:
+                r = random.choice(ranks)
+                s = random.choice(suits)
+                key = (r, s)
+                if key not in seen:
+                    seen.add(key)
+                    return Card(rank=r, suit=s)
+
+        CURRENT_STATE.community = [random_card(), random_card(), random_card()]
+        print("✅ 人工 Flop 生成成功:", CURRENT_STATE.community)
+        setattr(CURRENT_STATE, "stage", Stage.Flop)
+
+    # ---------- 返回当前状态 ----------
+    print("\n=== [DEBUG] /act 结束时状态 ===")
+    print(f"阶段: {getattr(CURRENT_STATE, 'stage', None)}")
+    print(f"公共牌: {getattr(CURRENT_STATE, 'community', None)}")
+
     return jsonify(serialize_state(CURRENT_STATE))
+
 
 
 
