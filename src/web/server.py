@@ -126,6 +126,12 @@ def index():
 
 @app.route("/start", methods=["POST"])
 def start():
+    """
+    启动一局新游戏：
+    1. 初始化状态
+    2. 自动让 AI 玩家执行动作直到轮到玩家 0
+    3. 返回可直接渲染的 JSON 状态
+    """
     global CURRENT_STATE
     import random
     print("\n================= [DEBUG] /start 被调用 =================")
@@ -136,7 +142,7 @@ def start():
             n_players=6,
             sb=1,
             bb=2,
-            button=0,
+            button=random.randint(0, 5),  # 随机庄位，更真实
             stake=200.0,
             seed=random.randint(0, 100000)
         )
@@ -147,23 +153,44 @@ def start():
         traceback.print_exc()
         return jsonify({"error": f"State.from_seed failed: {str(e)}"}), 500
 
-    # 这里加确认 CURRENT_STATE 的类型
-    print(f"[3] CURRENT_STATE 类型: {type(CURRENT_STATE)}")
+    print(f"[3] 当前玩家: {CURRENT_STATE.current_player}")
+    print("=== DEBUG HANDS ===")
+    for i, p in enumerate(CURRENT_STATE.players_state):
+        print(f"Player {i} hand:", p.hand)
+    print("===================")
 
+    # 让 AI 玩家自动行动直到轮到玩家 0 或游戏结束
     try:
-        print("=== DEBUG HANDS ===")
-        for i, p in enumerate(CURRENT_STATE.players_state):
-            print(f"Player {i} hand:", p.hand)
-        print("===================")
+        step = 0
+        print("[4] 开始让 AI 自动执行动作 ...")
+        while (
+            not CURRENT_STATE.final_state
+            and CURRENT_STATE.current_player != 0
+            and len(CURRENT_STATE.legal_actions) > 0
+            and step < 50
+        ):
+            ai_action = AI_AGENT.choose_action(CURRENT_STATE)
+            print(f"🤖 AI 玩家 {CURRENT_STATE.current_player} 执行动作: {ai_action}")
+            new_state = CURRENT_STATE.apply_action(ai_action)
+
+            if new_state.status != StateStatus.Ok:
+                print(f"⚠️ 非法动作: {new_state.status}")
+                break
+
+            CURRENT_STATE = new_state
+            step += 1
+
+        print(f"✅ AI 执行 {step} 步后，轮到玩家 {CURRENT_STATE.current_player}")
     except Exception as e:
-        print("❌ [ERROR] 打印玩家手牌失败：", e)
+        print("❌ [ERROR] AI 自动动作出错：", e)
         import traceback
         traceback.print_exc()
 
+    # 输出当前状态
+    print("[5] 准备 serialize_state()")
     try:
-        print("[4] 准备调用 serialize_state()")
         data = serialize_state(CURRENT_STATE)
-        print("[5] serialize_state() 成功，准备返回 JSON")
+        print("[6] serialize_state() 成功，准备返回 JSON")
         return jsonify(data)
     except Exception as e:
         print("❌ [ERROR] serialize_state 出错：", e)
