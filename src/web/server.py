@@ -9,7 +9,7 @@ from src.agents.random_agent import RandomAgent
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_PATH = "src/training/checkpoint_iter_100.pt"
+MODEL_PATH = "models/checkpoint_iter_1000.pt"
 
 
 # ---------- 加载AI ----------
@@ -73,12 +73,14 @@ def serialize_state(state):
         hand_cards = getattr(p, "hand", [])
         hand_str = [card_to_str(c) for c in hand_cards]
         active = bool(getattr(p, "active", True))
+        action = bool(getattr(p, "action", True))
         players.append({
             "id": i,
             "name": f"Player {i}",
             "stack": getattr(p, "stake", 0),
             "hand": hand_str,
             "active": active,
+            "action": action,
         })
         print(f"玩家 {i} 手牌: {hand_str}")
 
