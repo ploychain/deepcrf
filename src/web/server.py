@@ -73,7 +73,7 @@ def serialize_state(state):
         hand_cards = getattr(p, "hand", [])
         hand_str = [card_to_str(c) for c in hand_cards]
         active = bool(getattr(p, "active", True))
-        action = bool(getattr(p, "action", True))
+        action = getattr(p, "action", "")
         players.append({
             "id": i,
             "name": f"Player {i}",
