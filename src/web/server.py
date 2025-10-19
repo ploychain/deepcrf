@@ -38,6 +38,24 @@ def serialize_state(state):
     """将State对象转换为前端可用的JSON并打印牌信息"""
     print("\n=== [DEBUG] serialize_state() 调用 ===")
 
+    num_players = len(getattr(state, "players_state", []))
+    button_pos = getattr(state, "button", -1)
+    sb_pos = (button_pos + 1) % num_players if num_players else -1
+    bb_pos = (button_pos + 2) % num_players if num_players > 1 else -1
+
+    stage_obj = getattr(state, "stage", "")
+    stage_name = getattr(stage_obj, "name", str(stage_obj))
+    try:
+        stage_index = int(stage_obj)
+    except Exception:
+        stage_index = None
+
+    def safe_float(val, default=0.0):
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
+
     def card_to_str(card):
         """智能转换 pokers.Card → 扑克牌符号字符串"""
         try:
@@ -67,6 +85,23 @@ def serialize_state(state):
             print(f"⚠️ card_to_str 出错: {e} ({card})")
             return "??"
 
+    def action_to_str(action):
+        """转换玩家动作为易读文本"""
+        if not action:
+            return ""
+        try:
+            act_obj = getattr(action, "action", action)
+            act_name = getattr(act_obj, "name", str(act_obj))
+            amount = getattr(action, "amount", None)
+            if amount is None and hasattr(action, "bet"):
+                amount = getattr(action, "bet", None)
+            if isinstance(amount, (int, float)) and amount > 0:
+                return f"{act_name} {amount:.2f}"
+            return act_name
+        except Exception as e:
+            print(f"⚠️ action_to_str 出错: {e} ({action})")
+            return str(action)
+
     # ---------- 玩家 ----------
     players = []
     for i, p in enumerate(state.players_state):
@@ -74,13 +109,23 @@ def serialize_state(state):
         hand_str = [card_to_str(c) for c in hand_cards]
         active = bool(getattr(p, "active", True))
         action = getattr(p, "legal_actions", "")
+        bet_amount = safe_float(getattr(p, "bet_chips", 0.0))
+        reward = safe_float(getattr(p, "reward", 0.0))
+        last_action = action_to_str(getattr(p, "last_action", ""))
         players.append({
             "id": i,
             "name": f"Player {i}",
-            "stack": getattr(p, "stake", 0),
+            "stack": safe_float(getattr(p, "stake", 0)),
             "hand": hand_str,
             "active": active,
             "action": action,
+            "bet": bet_amount,
+            "reward": reward,
+            "last_action": last_action,
+            "is_dealer": i == button_pos,
+            "is_small_blind": i == sb_pos,
+            "is_big_blind": i == bb_pos,
+            "position_index": (i - button_pos) % num_players if num_players else None,
         })
         print(f"玩家 {i} 手牌: {hand_str}")
 
@@ -102,15 +147,25 @@ def serialize_state(state):
     pot_value = getattr(state, "pot", 0)
     if hasattr(pot_value, "value"):
         pot_value = pot_value.value
+    pot_value = safe_float(pot_value, 0.0)
 
     # ---------- 判断赢家 ----------
     winner_ids = []
     if getattr(state, "final_state", False):
-        rewards = [getattr(p, "reward", 0) for p in state.players_state]
+        rewards = [safe_float(getattr(p, "reward", 0), 0.0) for p in state.players_state]
         max_reward = max(rewards)
         if max_reward > 0:
             winner_ids = [i for i, r in enumerate(rewards) if r == max_reward]
         print(f"🏆 检测到赢家: {winner_ids}, 奖励分布: {rewards}")
+
+    sb_amount = getattr(state, "sb", None)
+    bb_amount = getattr(state, "bb", None)
+    if sb_amount is None:
+        sb_amount = getattr(state, "small_blind", 0)
+    if bb_amount is None:
+        bb_amount = getattr(state, "big_blind", 0)
+    sb_amount = safe_float(sb_amount, 0.0)
+    bb_amount = safe_float(bb_amount, 0.0)
 
     data = {
         "pot": pot_value,
@@ -119,8 +174,14 @@ def serialize_state(state):
         "legal_actions": legal_actions,
         "current_player": getattr(state, "current_player", -1),
         "final_state": getattr(state, "final_state", False),
-        "stage": str(getattr(state, "stage", "")),
+        "stage": stage_name,
+        "stage_index": stage_index,
         "winner": winner_ids,
+        "button": button_pos,
+        "small_blind_player": sb_pos,
+        "big_blind_player": bb_pos,
+        "small_blind_amount": sb_amount,
+        "big_blind_amount": bb_amount,
     }
 
     # ---------- 打印完整JSON ----------

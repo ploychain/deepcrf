@@ -48,6 +48,14 @@ function renderState(s) {
   const pot = document.getElementById("pot");
   pot.textContent = "底池: " + (s.pot ? s.pot.toFixed(2) : "0");
 
+  // ---- 牌局阶段 ----
+  const stage = document.getElementById("stageInfo");
+  if (stage) {
+    const stageLabel = s.stage ? s.stage.toString() : "";
+    const prettyStage = stageLabel.replace("StateStatus.", "") || "未知阶段";
+    stage.textContent = `阶段: ${prettyStage}`;
+  }
+
   // ---- 玩家 ----
   if (!s.players || !Array.isArray(s.players)) {
     console.error("❌ s.players invalid:", s);
@@ -60,14 +68,22 @@ function renderState(s) {
 
     // ✅ 保留原始结构
     seat.innerHTML = `
-  <div class="name">${i === 0 ? "你 (Player 0)" : "AI 玩家 " + i}</div>
+  <div class="name-row">
+    <div class="name">${i === 0 ? "你 (Player 0)" : "AI 玩家 " + i}</div>
+    <div class="badges"></div>
+  </div>
   <div class="stack">
-  ${p.active === false ? "（已弃牌）" : `筹码: ${(p.stack ?? 0).toFixed(2)}`}
-</div>
+    ${p.active === false ? "（已弃牌）" : `筹码: ${(p.stack ?? 0).toFixed(2)}`}
+  </div>
+  <div class="bet"></div>
   <div class="hand"></div>
-  <div class="status"></div>`;
+  <div class="status"></div>
+  <div class="last-action"></div>`;
     const h = seat.querySelector(".hand");
     const status = seat.querySelector(".status");
+    const bet = seat.querySelector(".bet");
+    const badges = seat.querySelector(".badges");
+    const lastAction = seat.querySelector(".last-action");
     const cards = p.hand || [];
 
     // ✅ 新增弃牌显示逻辑
@@ -83,6 +99,46 @@ function renderState(s) {
     // ✅ 新增：弃牌状态显示
     if (!p.active) seat.classList.add("folded");
     else seat.classList.remove("folded");
+
+    // ✅ 新增：盲注/庄家徽章
+    if (badges) {
+      badges.innerHTML = "";
+      const addBadge = (txt, cls, title) => {
+        const tag = document.createElement("span");
+        tag.className = `badge ${cls || ""}`.trim();
+        tag.textContent = txt;
+        if (title) tag.title = title;
+        badges.appendChild(tag);
+        return tag;
+      };
+      if (p.is_dealer) addBadge("D", "dealer", "庄家");
+      if (p.is_small_blind) {
+        const amt = typeof s.small_blind_amount === "number" ? s.small_blind_amount : null;
+        addBadge("SB", "sb", amt ? `小盲 ${amt.toFixed(2)}` : "小盲");
+      }
+      if (p.is_big_blind) {
+        const amt = typeof s.big_blind_amount === "number" ? s.big_blind_amount : null;
+        addBadge("BB", "bb", amt ? `大盲 ${amt.toFixed(2)}` : "大盲");
+      }
+    }
+
+    // ✅ 新增：显示本轮投注
+    if (bet) {
+      const amount = typeof p.bet === "number" ? p.bet : 0;
+      bet.textContent = amount > 0 ? `本轮投注: ${amount.toFixed(2)}` : "";
+    }
+
+    // ✅ 新增：显示上一动作或结算
+    if (lastAction) {
+      if (s.final_state && typeof p.reward === "number" && p.reward !== 0) {
+        const sign = p.reward > 0 ? "+" : "";
+        lastAction.textContent = `结算: ${sign}${p.reward.toFixed(2)}`;
+      } else if (p.last_action) {
+        lastAction.textContent = `动作: ${p.last_action}`;
+      } else {
+        lastAction.textContent = "";
+      }
+    }
 
     // ✅ 新增：摊牌逻辑
     if (s.final_state && cards.length > 0 && p.active) {
@@ -171,6 +227,8 @@ function normalizeCard(txt) {
 // ===================== 初始化 =====================
 window.onload = () => {
   const startBtn = document.getElementById("startBtn");
-  if (startBtn) startBtn.onclick = startGame;
-  else startGame();
+  if (startBtn) {
+    startBtn.onclick = startGame;
+    startGame();
+  } else startGame();
 };
