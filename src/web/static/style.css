@@ -104,8 +104,10 @@ html, body {
 .player {
   position: absolute;
   width: 200px;
+  height: 220px;
   text-align: center;
   transition: transform 0.3s;
+  padding-top: 14px;
 }
 
 .player .name {
@@ -151,6 +153,27 @@ html, body {
   font-weight: bold;
   text-align: center;
   margin-top: 4px;
+}
+
+.player .fold-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: bold;
+  background: rgba(200, 40, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  text-shadow: 0 0 6px rgba(0,0,0,0.8);
+}
+
+.player.folded .fold-banner {
+  display: flex;
 }
 
 .player .name-row {

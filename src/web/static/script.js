@@ -68,6 +68,7 @@ function renderState(s) {
 
     // ✅ 保留原始结构
     seat.innerHTML = `
+  <div class="fold-banner">弃牌</div>
   <div class="name-row">
     <div class="name">${i === 0 ? "你 (Player 0)" : "AI 玩家 " + i}</div>
     <div class="badges"></div>
@@ -84,6 +85,7 @@ function renderState(s) {
     const bet = seat.querySelector(".bet");
     const badges = seat.querySelector(".badges");
     const lastAction = seat.querySelector(".last-action");
+    const foldBanner = seat.querySelector(".fold-banner");
     const cards = p.hand || [];
 
     // ✅ 新增弃牌显示逻辑
@@ -91,9 +93,11 @@ function renderState(s) {
       seat.classList.add("folded");
       h.innerHTML = "";            // 清空手牌
       status.textContent = "弃牌"; // 显示弃牌文字
+      if (foldBanner) foldBanner.style.display = "flex";
     } else {
       seat.classList.remove("folded");
       status.textContent = "";
+      if (foldBanner) foldBanner.style.display = "none";
     }
 
     // ✅ 新增：弃牌状态显示
@@ -141,9 +145,8 @@ function renderState(s) {
     }
 
     // ✅ 新增：摊牌逻辑
-    if (s.final_state && cards.length > 0 && p.active) {
-      // 游戏结束时翻开所有仍在局内的手牌
-      cards.forEach(txt => {
+    const showCards = cardList => {
+      cardList.forEach(txt => {
         const d = document.createElement("div");
         d.className = "card";
         const val = normalizeCard(txt);
@@ -151,16 +154,17 @@ function renderState(s) {
         if (val.includes("♥") || val.includes("♦")) d.classList.add("red");
         h.appendChild(d);
       });
-    } else if (i === 0 || s.final_state) {
-      // ✅ 玩家自己 或 牌局结束时 — 显示真实手牌
-      cards.forEach(txt => {
-        const d = document.createElement("div");
-        d.className = "card";
-        const val = normalizeCard(txt);
-        d.textContent = val;
-        if (val.includes("♥") || val.includes("♦")) d.classList.add("red");
-        h.appendChild(d);
-      });
+    };
+
+    if (i === 0 && cards.length > 0) {
+      // 玩家自己始终看到手牌
+      showCards(cards);
+    } else if (s.final_state && p.active && cards.length > 0) {
+      // 牌局结束，仅展示仍在桌上玩家
+      showCards(cards);
+    } else if (!p.active) {
+      // 弃牌玩家不展示手牌
+      h.innerHTML = "";
     } else {
       // ✅ 进行中时的 AI 玩家 — 显示背面
       for (let j = 0; j < 2; j++) {
