@@ -13,23 +13,24 @@ MODEL_PATH = "models/checkpoint_iter_1000.pt"
 
 
 # ---------- 加载AI ----------
-def safe_load_agent():
-    """加载AI模型，如果失败则使用随机AI"""
+def safe_load_agent(player_id):
+    """加载指定座位的AI模型，如果失败则使用随机AI"""
     try:
-        print(f"🔹 正在加载AI模型：{MODEL_PATH}")
-        agent = DeepCFRAgent(player_id=0, num_players=6, device=device)
+        print(f"🔹 正在为玩家 {player_id} 加载AI模型：{MODEL_PATH}")
+        agent = DeepCFRAgent(player_id=player_id, num_players=6, device=device)
         ckpt = torch.load(MODEL_PATH, map_location=device)
         agent.advantage_net.load_state_dict(ckpt["advantage_net"], strict=False)
         agent.strategy_net.load_state_dict(ckpt["strategy_net"], strict=False)
-        print("✅ 模型加载成功")
+        print(f"✅ 模型加载成功（玩家 {player_id}）")
         return agent
     except Exception as e:
-        print(f"❌ 模型加载失败: {e}")
-        print("⚠️ 启用随机AI替代")
-        return RandomAgent(0)
+        print(f"❌ 玩家 {player_id} 模型加载失败: {e}")
+        print(f"⚠️ 启用随机AI替代（玩家 {player_id}）")
+        return RandomAgent(player_id)
 
 
-AI_AGENT = safe_load_agent()
+# 玩家 0 是用户，其余位置为 AI
+AI_AGENTS = [None] + [safe_load_agent(pid) for pid in range(1, 6)]
 CURRENT_STATE = None
 
 
@@ -223,7 +224,12 @@ def start():
     while not CURRENT_STATE.final_state:
         if CURRENT_STATE.current_player == 0:
             break
-        ai_action = AI_AGENT.choose_action(CURRENT_STATE)
+        current_seat = CURRENT_STATE.current_player
+        agent = AI_AGENTS[current_seat]
+        if agent is None:
+            print(f"⚠️ 未找到玩家 {current_seat} 的 AI，停止自动行动")
+            break
+        ai_action = agent.choose_action(CURRENT_STATE)
         CURRENT_STATE = CURRENT_STATE.apply_action(ai_action)
         step += 1
 
@@ -267,7 +273,12 @@ def act():
     while not CURRENT_STATE.final_state:
         if CURRENT_STATE.current_player == 0:
             break
-        ai_action = AI_AGENT.choose_action(CURRENT_STATE)
+        current_seat = CURRENT_STATE.current_player
+        agent = AI_AGENTS[current_seat]
+        if agent is None:
+            print(f"⚠️ 未找到玩家 {current_seat} 的 AI，停止自动行动")
+            break
+        ai_action = agent.choose_action(CURRENT_STATE)
         CURRENT_STATE = CURRENT_STATE.apply_action(ai_action)
         step += 1
 
