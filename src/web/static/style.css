@@ -221,9 +221,9 @@ html, body {
 /* ======== 六人环形布局 ======== */
 #player-0 { bottom: 5%; left: 50%; transform: translateX(-50%); }          /* 自己 */
 #player-1 { bottom: 20%; left: 18%; transform: translate(-50%, 0); }       /* 左下 */
-#player-2 { top: 45%; left: 14%; transform: translate(-50%, -50%); }       /* 左中 */
+#player-2 { top: 45%; left: 10%; transform: translate(-50%, -50%); }       /* 左中 */
 #player-3 { top: 6%; left: 50%; transform: translateX(-50%); }             /* 顶部 */
-#player-4 { top: 45%; left: 86%; transform: translate(-50%, -50%); }       /* 右中 */
+#player-4 { top: 45%; left: 90%; transform: translate(-50%, -50%); }       /* 右中 */
 #player-5 { bottom: 20%; left: 82%; transform: translate(-50%, 0); }       /* 右下 */
 
 /* ======== 操作按钮区 ======== */
