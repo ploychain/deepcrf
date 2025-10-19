@@ -156,14 +156,14 @@ function renderState(s) {
       });
     };
 
-    if (i === 0 && cards.length > 0) {
-      // 玩家自己始终看到手牌
+    if (s.final_state && cards.length > 0) {
+      // 牌局结束时翻开所有仍有手牌的玩家
       showCards(cards);
-    } else if (s.final_state && p.active && cards.length > 0) {
-      // 牌局结束，仅展示仍在桌上玩家
+    } else if (i === 0 && cards.length > 0) {
+      // 玩家自己在对局中也可见
       showCards(cards);
     } else if (!p.active) {
-      // 弃牌玩家不展示手牌
+      // 进行中的弃牌玩家不展示手牌
       h.innerHTML = "";
     } else {
       // ✅ 进行中时的 AI 玩家 — 显示背面
