@@ -1,4 +1,7 @@
 # src/web/server.py
+import os
+from glob import glob
+
 from flask import Flask, jsonify, request, send_from_directory
 import torch
 import random
@@ -9,18 +12,40 @@ from src.agents.random_agent import RandomAgent
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL_PATH = "models/checkpoint_iter_1000.pt"
+DEFAULT_MODEL_PATH = "models/checkpoint_iter_1000.pt"
 
 
 # ---------- 加载AI ----------
-def safe_load_agent(player_id):
-    """加载指定座位的AI模型，如果失败则使用随机AI"""
+def discover_model_paths():
+    """扫描常见目录获取可用模型路径"""
+    candidates = []
+    search_dirs = [
+        "models",
+        "models/checkpoints",
+        "flagship_models",
+        "flagship_models/first",
+    ]
+    for path in search_dirs:
+        if not os.path.isdir(path):
+            continue
+        candidates.extend(sorted(glob(os.path.join(path, "*.pt"))))
+
+    if not candidates and os.path.isfile(DEFAULT_MODEL_PATH):
+        candidates.append(DEFAULT_MODEL_PATH)
+
+    return candidates
+
+
+def safe_load_agent(player_id, model_path):
+    """加载指定座位与模型文件的AI，如果失败则使用随机AI"""
+    if not model_path:
+        print(f"⚠️ 玩家 {player_id} 未提供模型路径，改用随机AI")
+        return RandomAgent(player_id)
+
     try:
-        print(f"🔹 正在为玩家 {player_id} 加载AI模型：{MODEL_PATH}")
+        print(f"🔹 正在为玩家 {player_id} 加载AI模型：{model_path}")
         agent = DeepCFRAgent(player_id=player_id, num_players=6, device=device)
-        ckpt = torch.load(MODEL_PATH, map_location=device)
-        agent.advantage_net.load_state_dict(ckpt["advantage_net"], strict=False)
-        agent.strategy_net.load_state_dict(ckpt["strategy_net"], strict=False)
+        agent.load_model(model_path)
         print(f"✅ 模型加载成功（玩家 {player_id}）")
         return agent
     except Exception as e:
@@ -29,8 +54,19 @@ def safe_load_agent(player_id):
         return RandomAgent(player_id)
 
 
-# 玩家 0 是用户，其余位置为 AI
-AI_AGENTS = [None] + [safe_load_agent(pid) for pid in range(1, 6)]
+MODEL_PATHS = discover_model_paths()
+if MODEL_PATHS:
+    print("🔍 检测到以下模型文件用于AI对手：")
+    for idx, path in enumerate(MODEL_PATHS):
+        print(f"  [{idx}] {path}")
+else:
+    print("⚠️ 未发现任何模型文件，将全部使用随机AI")
+
+# 玩家 0 是用户，其余位置为 AI；若模型不足则循环使用
+AI_AGENTS = [None]
+for pid in range(1, 6):
+    model_path = MODEL_PATHS[(pid - 1) % len(MODEL_PATHS)] if MODEL_PATHS else None
+    AI_AGENTS.append(safe_load_agent(pid, model_path))
 CURRENT_STATE = None
 
 
@@ -194,6 +230,21 @@ def serialize_state(state):
     return data
 
 
+def describe_action(action):
+    """格式化动作信息"""
+    try:
+        act_enum = getattr(action, "action", action)
+        act_name = getattr(act_enum, "name", str(act_enum))
+        amount = getattr(action, "amount", None)
+        if amount is None and hasattr(action, "bet"):
+            amount = getattr(action, "bet", None)
+        if isinstance(amount, (int, float)) and amount > 0:
+            return f"{act_name}({amount:.2f})"
+        return act_name
+    except Exception:
+        return str(action)
+
+
 # ---------- 路由 ----------
 @app.route("/")
 def index():
@@ -229,7 +280,10 @@ def start():
         if agent is None:
             print(f"⚠️ 未找到玩家 {current_seat} 的 AI，停止自动行动")
             break
+        legal_desc = ", ".join(describe_action(a) for a in CURRENT_STATE.legal_actions)
+        print(f"🤖 玩家 {current_seat} 合法动作: [{legal_desc}]")
         ai_action = agent.choose_action(CURRENT_STATE)
+        print(f"🤖 玩家 {current_seat} 选择: {describe_action(ai_action)}")
         CURRENT_STATE = CURRENT_STATE.apply_action(ai_action)
         step += 1
 
@@ -278,7 +332,10 @@ def act():
         if agent is None:
             print(f"⚠️ 未找到玩家 {current_seat} 的 AI，停止自动行动")
             break
+        legal_desc = ", ".join(describe_action(a) for a in CURRENT_STATE.legal_actions)
+        print(f"🤖 玩家 {current_seat} 合法动作: [{legal_desc}]")
         ai_action = agent.choose_action(CURRENT_STATE)
+        print(f"🤖 玩家 {current_seat} 选择: {describe_action(ai_action)}")
         CURRENT_STATE = CURRENT_STATE.apply_action(ai_action)
         step += 1
 
