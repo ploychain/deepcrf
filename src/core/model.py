@@ -148,4 +148,14 @@ def encode_state(state, player_id=0):
     encoded.append(prev_action_enc)
     
     # Concatenate all features
-    return np.concatenate(encoded)
+    x = np.concatenate(encoded)
+
+    # --- Ensure fixed input length of 500 for PokerNetwork ---
+    # If total features < 500 → zero pad
+    # If total features > 500 → truncate to 500
+    if len(x) < 500:
+        x = np.pad(x, (0, 500 - len(x)), mode='constant')
+    elif len(x) > 500:
+        x = x[:500]
+
+    return x
