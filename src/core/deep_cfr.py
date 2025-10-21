@@ -167,9 +167,9 @@ class DeepCFRAgent:
         self.memory_size = memory_size  # 保持大内存
 
         # 网络结构
-        self.advantage_net = PokerNetwork(input_size=input_size, hidden_size=512, num_actions=self.num_actions).to(
+        self.advantage_net = PokerNetwork(input_size=500, hidden_size=512, num_actions=self.num_actions).to(
             device)
-        self.strategy_net = PokerNetwork(input_size=input_size, hidden_size=512, num_actions=self.num_actions).to(
+        self.strategy_net = PokerNetwork(input_size=500, hidden_size=512, num_actions=self.num_actions).to(
             device)
 
         # 优化器（使用 AdamW，收敛性更好）

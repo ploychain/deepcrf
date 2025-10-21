@@ -6,7 +6,6 @@ from flask import Flask, jsonify, request, send_from_directory
 import torch
 import random
 from pokers import State, StateStatus, Action, ActionEnum
-from src.core.model import PokerNetwork
 from src.core.deep_cfr import DeepCFRAgent
 from src.agents.random_agent import RandomAgent
 
@@ -21,10 +20,10 @@ def discover_model_paths():
     """扫描常见目录获取可用模型路径"""
     candidates = []
     search_dirs = [
-        "fix_models",
-        # "models/checkpoints",
-        # "flagship_models",
-        # "flagship_models/first",
+        "models",
+        "models/checkpoints",
+        "flagship_models",
+        "flagship_models/first",
     ]
     for path in search_dirs:
         if not os.path.isdir(path):
@@ -39,7 +38,6 @@ def discover_model_paths():
 
 def safe_load_agent(player_id, model_path):
     """加载指定座位与模型文件的AI，如果失败则使用随机AI"""
-
     if not model_path:
         print(f"⚠️ 玩家 {player_id} 未提供模型路径，改用随机AI")
         return RandomAgent(player_id)
@@ -47,8 +45,6 @@ def safe_load_agent(player_id, model_path):
     try:
         print(f"🔹 正在为玩家 {player_id} 加载AI模型：{model_path}")
         agent = DeepCFRAgent(player_id=player_id, num_players=6, device=device)
-        agent.advantage_net = PokerNetwork(input_size=156, hidden_size=256, num_actions=3).to(device)
-        agent.strategy_net = PokerNetwork(input_size=156, hidden_size=256, num_actions=3).to(device)
         agent.load_model(model_path)
         print(f"✅ 模型加载成功（玩家 {player_id}）")
         return agent
