@@ -344,6 +344,10 @@ def act():
 
 
 if __name__ == "__main__":
-    port = 5000
+    import os
+    from werkzeug.serving import run_simple
+
+    port = int(os.environ.get("PORT", 5000))
     print(f"✅ Poker Web 服务器启动：http://0.0.0.0:{port}")
-    app.run(host="0.0.0.0", port=port)
+    run_simple("0.0.0.0", port, app, use_reloader=False, use_debugger=False)
+
