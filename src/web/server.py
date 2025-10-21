@@ -6,6 +6,8 @@ from flask import Flask, jsonify, request, send_from_directory
 import torch
 import random
 from pokers import State, StateStatus, Action, ActionEnum
+
+from core import PokerNetwork
 from src.core.deep_cfr import DeepCFRAgent
 from src.agents.random_agent import RandomAgent
 
@@ -45,6 +47,8 @@ def safe_load_agent(player_id, model_path):
     try:
         print(f"🔹 正在为玩家 {player_id} 加载AI模型：{model_path}")
         agent = DeepCFRAgent(player_id=player_id, num_players=6, device=device)
+        agent.advantage_net = PokerNetwork(input_size=500, hidden_size=512, num_actions=3).to(device)
+        agent.strategy_net = PokerNetwork(input_size=500, hidden_size=512, num_actions=3).to(device)
         agent.load_model(model_path)
         print(f"✅ 模型加载成功（玩家 {player_id}）")
         return agent
