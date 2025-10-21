@@ -7,7 +7,6 @@ import torch
 import random
 from pokers import State, StateStatus, Action, ActionEnum
 
-from core import PokerNetwork
 from src.core.deep_cfr import DeepCFRAgent
 from src.agents.random_agent import RandomAgent
 
@@ -40,6 +39,8 @@ def discover_model_paths():
 
 def safe_load_agent(player_id, model_path):
     """加载指定座位与模型文件的AI，如果失败则使用随机AI"""
+    from src.core.model import PokerNetwork
+
     if not model_path:
         print(f"⚠️ 玩家 {player_id} 未提供模型路径，改用随机AI")
         return RandomAgent(player_id)
