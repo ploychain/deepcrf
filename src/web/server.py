@@ -47,8 +47,8 @@ def safe_load_agent(player_id, model_path):
     try:
         print(f"🔹 正在为玩家 {player_id} 加载AI模型：{model_path}")
         agent = DeepCFRAgent(player_id=player_id, num_players=6, device=device)
-        agent.advantage_net = PokerNetwork(input_size=500, hidden_size=512, num_actions=3).to(device)
-        agent.strategy_net = PokerNetwork(input_size=500, hidden_size=512, num_actions=3).to(device)
+        agent.advantage_net = PokerNetwork(input_size=156, hidden_size=256, num_actions=3).to(device)
+        agent.strategy_net = PokerNetwork(input_size=156, hidden_size=256, num_actions=3).to(device)
         agent.load_model(model_path)
         print(f"✅ 模型加载成功（玩家 {player_id}）")
         return agent
