@@ -136,198 +136,178 @@ class DeepCFRAgent:
         # Calculate input size based on state encoding
         input_size = 52 + 52 + 5 + 1 + num_players + num_players + num_players*4 + 1 + 4 + 5
         
-        # Create advantage network with bet sizing
-        self.advantage_net = PokerNetwork(input_size=input_size, hidden_size=256, num_actions=self.num_actions).to(device)
-        
-        # Use a smaller learning rate for more stable training
-        self.optimizer = optim.Adam(self.advantage_net.parameters(), lr=1e-6, weight_decay=1e-5)
-        
-        # Create prioritized memory buffer
+        # # Create advantage network with bet sizing
+        # self.advantage_net = PokerNetwork(input_size=input_size, hidden_size=256, num_actions=self.num_actions).to(device)
+        #
+        # # Use a smaller learning rate for more stable training
+        # self.optimizer = optim.Adam(self.advantage_net.parameters(), lr=1e-6, weight_decay=1e-5)
+        #
+        # # Create prioritized memory buffer
+        # self.advantage_memory = PrioritizedMemory(memory_size)
+        #
+        # # Strategy network
+        # self.strategy_net = PokerNetwork(input_size=input_size, hidden_size=256, num_actions=self.num_actions).to(device)
+        # self.strategy_optimizer = optim.Adam(self.strategy_net.parameters(), lr=0.00005, weight_decay=1e-5)
+        # self.strategy_memory = deque(maxlen=memory_size)
+        #
+        # # For keeping statistics
+        # self.iteration_count = 0
+        #
+        # # Regret normalization tracker
+        # self.max_regret_seen = 1.0
+        #
+        # # Bet sizing bounds (as multipliers of pot)
+        # self.min_bet_size = 0.1
+        # self.max_bet_size = 3.0
+
+        # --- 优化版参数设置 ---
+        self.learning_rate = 3e-5  # 更高学习率，收敛更快但仍稳定
+        self.batch_size = 1024  # 更大的 batch 利于稳定梯度
+        self.epochs = 3  # 每次更新迭代次数
+        self.memory_size = memory_size  # 保持大内存
+
+        # 网络结构
+        self.advantage_net = PokerNetwork(input_size=input_size, hidden_size=512, num_actions=self.num_actions).to(
+            device)
+        self.strategy_net = PokerNetwork(input_size=input_size, hidden_size=512, num_actions=self.num_actions).to(
+            device)
+
+        # 优化器（使用 AdamW，收敛性更好）
+        self.optimizer = optim.AdamW(self.advantage_net.parameters(), lr=self.learning_rate, weight_decay=1e-4)
+        self.strategy_optimizer = optim.AdamW(self.strategy_net.parameters(), lr=self.learning_rate, weight_decay=1e-4)
+
+        # 优先经验池
         self.advantage_memory = PrioritizedMemory(memory_size)
-        
-        # Strategy network
-        self.strategy_net = PokerNetwork(input_size=input_size, hidden_size=256, num_actions=self.num_actions).to(device)
-        self.strategy_optimizer = optim.Adam(self.strategy_net.parameters(), lr=0.00005, weight_decay=1e-5)
         self.strategy_memory = deque(maxlen=memory_size)
-        
-        # For keeping statistics
+
+        # 统计信息
         self.iteration_count = 0
-        
-        # Regret normalization tracker
         self.max_regret_seen = 1.0
-        
-        # Bet sizing bounds (as multipliers of pot)
+
+        # 更广的下注范围
         self.min_bet_size = 0.1
-        self.max_bet_size = 3.0
+        self.max_bet_size = 10.0  # 原 3.0 改成 5.0，允许更大 raise
 
     def action_type_to_pokers_action(self, action_type, state, bet_size_multiplier=None):
         """
         Convert action type and optional bet size to Pokers action.
-        (Refined Raise Logic with Float Safeguard)
+        Enhanced version with Raise sizing tiers (1/3 pot ... all-in) and full safety handling.
         """
-        # Access VERBOSE, assuming it's set globally or accessible (e.g., self.verbose if it's an instance attr)
-        # For this example, I'll assume VERBOSE is a global imported from your model.py or utils
-        # If VERBOSE is an instance variable like self.verbose, use that instead.
-        # from src.core.model import VERBOSE # Make sure this import is at the top of the file or VERBOSE is otherwise in scope
-
         try:
-            if action_type == 0:  # Fold
+            # --- Fold ---
+            if action_type == 0:
                 if pkrs.ActionEnum.Fold in state.legal_actions:
                     return pkrs.Action(pkrs.ActionEnum.Fold)
-                # Fallback logic for Fold
-                if pkrs.ActionEnum.Check in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Check)
-                if pkrs.ActionEnum.Call in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Call)
-                if VERBOSE: print(f"DeepCFRAgent WARNING: Fold chosen but no other legal fallback. Returning Fold anyway.")
-                return pkrs.Action(pkrs.ActionEnum.Fold) # Last resort
-
-            elif action_type == 1:  # Check/Call
                 if pkrs.ActionEnum.Check in state.legal_actions:
                     return pkrs.Action(pkrs.ActionEnum.Check)
-                elif pkrs.ActionEnum.Call in state.legal_actions:
+                if pkrs.ActionEnum.Call in state.legal_actions:
                     return pkrs.Action(pkrs.ActionEnum.Call)
-                # Fallback logic for Check/Call
-                if pkrs.ActionEnum.Fold in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Fold)
-                if VERBOSE: print(f"DeepCFRAgent WARNING: Check/Call chosen but neither legal, nor Fold. Returning Check anyway.")
-                return pkrs.Action(pkrs.ActionEnum.Check) # Last resort
+                if VERBOSE:
+                    print("⚠️ Fold chosen but no fallback. Returning Fold.")
+                return pkrs.Action(pkrs.ActionEnum.Fold)
 
-            elif action_type == 2:  # Raise
-                if pkrs.ActionEnum.Raise not in state.legal_actions:
-                    # If Raise is not legal, fall back
-                    if VERBOSE: print(f"DeepCFRAgent INFO: Raise (type 2) chosen, but Raise not in legal_actions. Falling back.")
-                    if pkrs.ActionEnum.Call in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Call)
-                    if pkrs.ActionEnum.Check in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Check)
+            # --- Check / Call ---
+            elif action_type == 1:
+                if pkrs.ActionEnum.Check in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Check)
+                if pkrs.ActionEnum.Call in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Call)
+                if pkrs.ActionEnum.Fold in state.legal_actions:
                     return pkrs.Action(pkrs.ActionEnum.Fold)
+                if VERBOSE:
+                    print("⚠️ Check/Call chosen but not legal. Returning Check fallback.")
+                return pkrs.Action(pkrs.ActionEnum.Check)
 
-                player_state = state.players_state[state.current_player]
-                current_bet = player_state.bet_chips        # What player already has in pot this round
-                available_stake = player_state.stake        # Player's remaining chips
-
-                call_amount = max(0.0, state.min_bet - current_bet) # Additional chips needed to call
-
-                min_raise_increment = 1.0
-                if hasattr(state, 'bb') and state.bb is not None and float(state.bb) > 0:
-                    min_raise_increment = max(1.0, float(state.bb))
-                elif state.min_bet > 0 : # If no BB, use min_bet if it implies a raise size
-                     # This part is a bit heuristic if BB is not well-defined.
-                     # The idea is that a raise should be somewhat meaningful.
-                     # If last bet was X, min_raise_increment is often X.
-                     # For simplicity, we'll stick to a small fixed minimum or BB.
-                     # A more robust way might involve looking at the previous raise amount.
-                     min_raise_increment = max(1.0, state.min_bet - current_bet if state.min_bet > current_bet else 1.0)
-
-
-                # --- Initial Check: Can the player make ANY valid raise? ---
-                # A valid raise means calling and then adding at least min_raise_increment.
-                if available_stake < call_amount + min_raise_increment:
+            # --- Raise ---
+            elif action_type == 2:
+                if pkrs.ActionEnum.Raise not in state.legal_actions:
                     if VERBOSE:
-                        print(f"DeepCFRAgent INFO: Raise (type 2) chosen, but cannot make a valid min_raise_increment. "
-                              f"AvailableStake({available_stake:.2f}) < CallAmt({call_amount:.2f}) + MinInc({min_raise_increment:.2f}). Switching to Call.")
+                        print("ℹ️ Raise chosen but not legal. Fallback to Call/Check.")
                     if pkrs.ActionEnum.Call in state.legal_actions:
                         return pkrs.Action(pkrs.ActionEnum.Call)
-                    else:
-                        if VERBOSE: print(f"DeepCFRAgent WARNING: Cannot Call (not legal after failing raise check), falling back to Fold.")
-                        return pkrs.Action(pkrs.ActionEnum.Fold)
-                # --- End Initial Check ---
+                    if pkrs.ActionEnum.Check in state.legal_actions:
+                        return pkrs.Action(pkrs.ActionEnum.Check)
+                    return pkrs.Action(pkrs.ActionEnum.Fold)
 
-                remaining_stake_after_call = available_stake - call_amount
-
-                # Get target additional raise from network's bet_size_multiplier
+                # --- 基础状态 ---
+                player_state = state.players_state[state.current_player]
+                current_bet = player_state.bet_chips
+                available_stake = player_state.stake
+                call_amount = max(0.0, state.min_bet - current_bet)
+                remaining_stake_after_call = max(0.0, available_stake - call_amount)
                 pot_size = max(1.0, state.pot)
 
-                if bet_size_multiplier is None:
-                    bet_size_multiplier = 1.0 # Default if not provided
-                else:
-                    bet_size_multiplier = float(bet_size_multiplier)
-                    # Optional: self.adjust_bet_size(state, bet_size_multiplier) if you use it
+                # --- Raise 档位设置 ---
+                if int(state.stage) == 0:  # preflop
+                    raise_options = [1.0, 2.0, 3.0, 'allin']
+                else:  # flop / turn / river
+                    raise_options = [0.33, 0.5, 0.75, 1.0, 2.0, 3.0, 5.0, 10.0, 'allin']
 
-                bet_size_multiplier = max(self.min_bet_size, min(self.max_bet_size, bet_size_multiplier))
-                network_desired_additional_raise = pot_size * bet_size_multiplier
+                # --- 由网络输出映射档位 ---
+                m = 0.5 if bet_size_multiplier is None else float(bet_size_multiplier)
+                m = max(0.0, min(1.0, m))
+                idx = min(int(m * len(raise_options)), len(raise_options) - 1)
+                slot = raise_options[idx]
 
-                # Determine chosen_additional_amount based on network and game rules
-                chosen_additional_amount = network_desired_additional_raise
-                # Clip 1: Cannot raise more than all-in (remaining_stake_after_call)
-                chosen_additional_amount = min(chosen_additional_amount, remaining_stake_after_call)
-                # Clip 2: Must raise at least min_raise_increment
-                chosen_additional_amount = max(chosen_additional_amount, min_raise_increment)
-
-                # Safeguard: If due to clipping (e.g. min_raise_increment was > remaining_stake_after_call,
-                # which shouldn't happen if initial check was correct), ensure it's not > remaining_stake_after_call.
-                # This makes it an all-in if min_raise_increment forces it.
-                if chosen_additional_amount > remaining_stake_after_call:
+                # --- 计算 raise 金额 ---
+                if slot == 'allin':
                     chosen_additional_amount = remaining_stake_after_call
-                
-                # --- START: FLOAT SAFEGUARD ---
-                total_chips_player_would_commit_this_turn = call_amount + chosen_additional_amount
-                epsilon = 0.00001  # Tolerance for float comparisons
+                else:
+                    chosen_additional_amount = pot_size * float(slot)
 
-                if total_chips_player_would_commit_this_turn > available_stake + epsilon:
-                    if VERBOSE:
-                        print(f"DeepCFRAgent INFO: Float Safeguard in action_type_to_pokers_action triggered.")
-                        print(f"  Initial chosen_additional_amount: {chosen_additional_amount:.6f}")
-                        print(f"  Total commit ({total_chips_player_would_commit_this_turn:.6f}) > available_stake ({available_stake:.6f})")
+                # --- 最小加注 ---
+                min_raise_increment = 1.0
+                if hasattr(state, 'bb') and state.bb:
+                    min_raise_increment = max(1.0, float(state.bb))
+                elif state.min_bet > 0:
+                    min_raise_increment = max(1.0, state.min_bet - current_bet if state.min_bet > current_bet else 1.0)
 
-                    chosen_additional_amount = available_stake - call_amount
-                    chosen_additional_amount = max(0.0, chosen_additional_amount) # Ensure not negative
+                # --- 调整边界 ---
+                chosen_additional_amount = max(chosen_additional_amount, min_raise_increment)
+                chosen_additional_amount = min(chosen_additional_amount, remaining_stake_after_call)
 
-                    if VERBOSE:
-                        print(f"  Adjusted chosen_additional_amount: {chosen_additional_amount:.6f}")
-                        print(f"  New total commit: {(call_amount + chosen_additional_amount):.6f}")
-                # --- END: FLOAT SAFEGUARD ---
+                # --- 浮点保护 ---
+                epsilon = 1e-5
+                total_commit = call_amount + chosen_additional_amount
+                if total_commit > available_stake + epsilon:
+                    chosen_additional_amount = max(0.0, available_stake - call_amount)
 
-                # Ensure chosen_additional_amount is not negative after all adjustments
-                chosen_additional_amount = max(0.0, chosen_additional_amount)
+                # --- fallback 检查 ---
+                if chosen_additional_amount <= 0:
+                    if pkrs.ActionEnum.Call in state.legal_actions:
+                        return pkrs.Action(pkrs.ActionEnum.Call)
+                    if pkrs.ActionEnum.Check in state.legal_actions:
+                        return pkrs.Action(pkrs.ActionEnum.Check)
+                    return pkrs.Action(pkrs.ActionEnum.Fold)
 
+                # --- 调试输出 ---
                 if VERBOSE:
-                    print(f"--- DeepCFRAgent Raise Calculation (FINAL PRE-RETURN) ---")
-                    print(f"  Player ID: {state.current_player}, Stage: {state.stage}")
-                    print(f"  Available Stake: {available_stake:.6f}, Current Bet In Pot: {current_bet:.6f}")
-                    print(f"  State Min Bet (to call): {state.min_bet:.6f}, Pot Size: {state.pot:.6f}")
-                    print(f"  Calculated Call Amount: {call_amount:.6f}")
-                    print(f"  Min Raise Increment: {min_raise_increment:.6f}")
-                    print(f"  Remaining Stake After Call: {remaining_stake_after_call:.6f}")
-                    print(f"  Bet Size Multiplier (from net, raw): {float(bet_size_multiplier) if bet_size_multiplier is not None else 'N/A'}, (used, clipped): {bet_size_multiplier:.6f}")
-                    print(f"  Network Desired Additional Raise (pot * mult): {network_desired_additional_raise:.6f}")
-                    print(f"  Chosen Additional Raise Amount (pre-float-guard): {network_desired_additional_raise:.6f} -> clipped by rules to -> {chosen_additional_amount+epsilon if total_chips_player_would_commit_this_turn > available_stake + epsilon else chosen_additional_amount:.6f}") # Show value before float guard if it triggered
-                    print(f"  Final Chosen Additional Raise Amount (post-float-guard): {chosen_additional_amount:.6f}")
-                    _total_chips_this_action = call_amount + chosen_additional_amount
-                    print(f"  Total Chips for this action (call + additional): {_total_chips_this_action:.6f}")
-                    _is_exact_all_in = abs(_total_chips_this_action - available_stake) < epsilon
-                    print(f"  Is this an exact all-in (post-safeguard)? {_is_exact_all_in}")
-                    if _is_exact_all_in: print(f"    All-in Difference: {(_total_chips_this_action - available_stake):.10f}")
-                    print(f"--------------------------------------------------------------------")
+                    print(f"[RAISE] Stage={state.stage}, Pot={pot_size:.2f}, Slot={slot}, "
+                          f"Add={chosen_additional_amount:.2f}, Call={call_amount:.2f}, "
+                          f"Stack={available_stake:.2f}, BB={getattr(state, 'bb', 0)}")
 
                 return pkrs.Action(pkrs.ActionEnum.Raise, chosen_additional_amount)
 
-            else: # Should not be reached if action_type is 0, 1, or 2
-                if VERBOSE: print(f"DeepCFRAgent ERROR: Unknown action type: {action_type}")
-                if pkrs.ActionEnum.Call in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Call)
-                if pkrs.ActionEnum.Check in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Check)
+            # --- 无效类型 ---
+            else:
+                if VERBOSE:
+                    print(f"❌ Unknown action_type={action_type}. Fallback to Call/Check.")
+                if pkrs.ActionEnum.Call in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Call)
+                if pkrs.ActionEnum.Check in state.legal_actions:
+                    return pkrs.Action(pkrs.ActionEnum.Check)
                 return pkrs.Action(pkrs.ActionEnum.Fold)
 
         except Exception as e:
-            # Ensure VERBOSE is accessible here or handle its absence
-            try:
-                is_verbose = VERBOSE
-            except NameError:
-                is_verbose = False # Default if VERBOSE is not defined in this scope
-
-            if is_verbose: # Or self.verbose if it's an instance attribute
-                print(f"DeepCFRAgent CRITICAL ERROR in action_type_to_pokers_action: Type {action_type} for player {self.player_id}: {e}")
-                print(f"  State: current_player={state.current_player}, stage={state.stage}, legal_actions={state.legal_actions}")
-                if hasattr(state, 'players_state') and self.player_id < len(state.players_state):
-                    print(f"  Player {self.player_id} stake: {state.players_state[self.player_id].stake}, bet: {state.players_state[self.player_id].bet_chips}")
-                else:
-                    print(f"  Player state for player {self.player_id} not accessible.")
+            if VERBOSE:
+                print(f"🔥 DeepCFRAgent ERROR: {e}")
                 import traceback
                 traceback.print_exc()
-
-            # Fall back to a safe action
-            if hasattr(state, 'legal_actions'):
-                if pkrs.ActionEnum.Call in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Call)
-                if pkrs.ActionEnum.Check in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Check)
-                if pkrs.ActionEnum.Fold in state.legal_actions: return pkrs.Action(pkrs.ActionEnum.Fold)
-            
-            # Absolute last resort if state.legal_actions is not even available or empty
+            # 兜底安全回退
+            if pkrs.ActionEnum.Call in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Call)
+            if pkrs.ActionEnum.Check in state.legal_actions:
+                return pkrs.Action(pkrs.ActionEnum.Check)
             return pkrs.Action(pkrs.ActionEnum.Fold)
 
     def adjust_bet_size(self, state, base_multiplier):
