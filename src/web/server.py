@@ -284,6 +284,12 @@ def start():
         print(f"🤖 玩家 {current_seat} 合法动作: [{legal_desc}]")
         ai_action = agent.choose_action(CURRENT_STATE)
         print(f"🤖 玩家 {current_seat} 选择: {describe_action(ai_action)}")
+        # 🔍 调试下注输出
+        if hasattr(ai_action, "amount"):
+            print(f"🤖 下注预测值: {ai_action.amount}")
+        else:
+            print("🤖 下注预测值: 无 amount 字段")
+
         CURRENT_STATE = CURRENT_STATE.apply_action(ai_action)
         step += 1
 
