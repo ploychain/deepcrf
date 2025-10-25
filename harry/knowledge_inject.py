@@ -30,15 +30,16 @@ class PokerKnowledge:
                     continue
                 my_rank = self.evaluator.evaluate(board, my_hand)
                 opp_ranks = [self.evaluator.evaluate(board, oh) for oh in opp_hands]
-                # Count wins and ties per opponent
-                wins = 0.0
-                for opp_rank in opp_ranks:
-                    if my_rank < opp_rank:  # Win (lower rank is stronger)
-                        wins += 1.0
-                    elif my_rank == opp_rank:  # Tie
-                        wins += 0.5
-                wins /= num_opponents  # Average over opponents
-                equities.append(wins)
+                # Global win/tie: my_rank must be lowest (strongest)
+                min_rank = min(opp_ranks)
+                if my_rank < min_rank:
+                    equity = 1.0  # Win against all opponents
+                elif my_rank == min_rank:
+                    tie_count = sum(1 for r in opp_ranks if r == my_rank) + 1  # Include my_hand
+                    equity = 1.0 / tie_count  # Split pot
+                else:
+                    equity = 0.0  # Lose to at least one opponent
+                equities.append(equity)
             except (KeyError, ValueError):
                 continue
         return np.mean(equities) if equities else 0.0
