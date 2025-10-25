@@ -10,16 +10,13 @@ class PokerKnowledge:
     def preflop_equity(self, hand: list, num_opponents: int = 5) -> float:
         """Calculate preflop equity via Monte Carlo for 6-player table."""
         equities = []
-        my_hand = [Card.new(card) for card in hand]  # e.g., ['As', 'Ad']
         for _ in range(self.sims):
             deck = Deck()  # Reset deck each iteration
-            deck.shuffle()
-            # Validate hand cards are in deck
-            if any(Card.new(card) not in deck.cards for card in hand):
+            # Convert hand to treys format and draw
+            my_hand = [deck.draw(1) if card[0] == c[0] and card[1] == c[1] else None for c in deck.cards for card in hand]
+            my_hand = [h for h in my_hand if h is not None][:2]  # Ensure 2 cards
+            if len(my_hand) != 2:
                 continue
-            # Remove hand cards from deck
-            for card in my_hand:
-                deck.cards.remove(card)
             try:
                 opp_hands = [deck.draw(2) for _ in range(num_opponents)]
                 board = deck.draw(5)
@@ -29,10 +26,11 @@ class PokerKnowledge:
                     continue
                 my_rank = self.evaluator.evaluate(board, my_hand)
                 opp_ranks = [self.evaluator.evaluate(board, oh) for oh in opp_hands]
+                # Win = my_rank < opp_rank (lower rank is stronger in treys)
                 wins = sum(my_rank < opp_rank for opp_rank in opp_ranks) / num_opponents
                 equities.append(wins)
             except KeyError:
-                continue  # Skip invalid hand evaluations
+                continue  # Skip invalid evaluations
         return np.mean(equities) if equities else 0.0
 
     def generate_equity_table(self, output_file: str = 'equity_table.csv'):
@@ -42,8 +40,7 @@ class PokerKnowledge:
         equities = {}
         for hand in hands:
             cards = [f'{hand[0]}s', f'{hand[1]}{"s" if hand[2] == "s" else "h"}']
-            equity = self.preflop_equity(cards)
-            equities[hand] = equity
+            equities[hand] = self.preflop_equity(cards)
         df = pd.DataFrame.from_dict(equities, orient='index', columns=['equity'])
         df.to_csv(output_file)
 
