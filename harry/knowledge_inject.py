@@ -11,18 +11,17 @@ class PokerKnowledge:
     def preflop_equity(self, hand: List[str], num_opponents: int = 5) -> float:
         """Calculate preflop equity via Monte Carlo for 6-player table."""
         equities = []
-        my_hand = [Card.new(card) for card in hand]  # e.g., ['As', 'Ad'] -> treys Card objects
+        my_hand = [Card.new(card) for card in hand]  # e.g., ['As', 'Ad']
         for _ in range(self.sims):
-            deck = Deck()  # Reset deck each iteration
-            # Remove hand cards from deck
+            deck = Deck()  # Reset deck
+            deck_cards = deck.cards[:]
+            for card in my_hand:
+                if card in deck_cards:
+                    deck_cards.remove(card)
+                else:
+                    continue
+            deck.cards = deck_cards
             try:
-                deck_cards = deck.cards[:]
-                for card in my_hand:
-                    if card in deck_cards:
-                        deck_cards.remove(card)
-                    else:
-                        continue  # Skip if card not in deck
-                deck.cards = deck_cards
                 opp_hands = [deck.draw(2) for _ in range(num_opponents)]
                 board = deck.draw(5)
                 # Validate no duplicates
@@ -31,11 +30,17 @@ class PokerKnowledge:
                     continue
                 my_rank = self.evaluator.evaluate(board, my_hand)
                 opp_ranks = [self.evaluator.evaluate(board, oh) for oh in opp_hands]
-                # Win = my_rank < opp_rank (lower rank is stronger in treys)
-                wins = sum(my_rank < opp_rank for opp_rank in opp_ranks) / num_opponents
+                # Count wins and ties per opponent
+                wins = 0.0
+                for opp_rank in opp_ranks:
+                    if my_rank < opp_rank:  # Win (lower rank is stronger)
+                        wins += 1.0
+                    elif my_rank == opp_rank:  # Tie
+                        wins += 0.5
+                wins /= num_opponents  # Average over opponents
                 equities.append(wins)
             except (KeyError, ValueError):
-                continue  # Skip invalid evaluations
+                continue
         return np.mean(equities) if equities else 0.0
 
     def generate_equity_table(self, output_file: str = 'equity_table.csv'):
