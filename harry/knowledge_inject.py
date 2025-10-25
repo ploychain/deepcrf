@@ -1,23 +1,28 @@
 import numpy as np
 from treys import Card, Deck, Evaluator
 import pandas as pd
+from typing import List
 
 class PokerKnowledge:
     def __init__(self, sims: int = 10000):
         self.evaluator = Evaluator()
         self.sims = sims
 
-    def preflop_equity(self, hand: list, num_opponents: int = 5) -> float:
+    def preflop_equity(self, hand: List[str], num_opponents: int = 5) -> float:
         """Calculate preflop equity via Monte Carlo for 6-player table."""
         equities = []
+        my_hand = [Card.new(card) for card in hand]  # e.g., ['As', 'Ad'] -> treys Card objects
         for _ in range(self.sims):
             deck = Deck()  # Reset deck each iteration
-            # Convert hand to treys format and draw
-            my_hand = [deck.draw(1) if card[0] == c[0] and card[1] == c[1] else None for c in deck.cards for card in hand]
-            my_hand = [h for h in my_hand if h is not None][:2]  # Ensure 2 cards
-            if len(my_hand) != 2:
-                continue
+            # Remove hand cards from deck
             try:
+                deck_cards = deck.cards[:]
+                for card in my_hand:
+                    if card in deck_cards:
+                        deck_cards.remove(card)
+                    else:
+                        continue  # Skip if card not in deck
+                deck.cards = deck_cards
                 opp_hands = [deck.draw(2) for _ in range(num_opponents)]
                 board = deck.draw(5)
                 # Validate no duplicates
@@ -29,7 +34,7 @@ class PokerKnowledge:
                 # Win = my_rank < opp_rank (lower rank is stronger in treys)
                 wins = sum(my_rank < opp_rank for opp_rank in opp_ranks) / num_opponents
                 equities.append(wins)
-            except KeyError:
+            except (KeyError, ValueError):
                 continue  # Skip invalid evaluations
         return np.mean(equities) if equities else 0.0
 
