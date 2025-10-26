@@ -6,7 +6,7 @@ import pandas as pd
 import pokers as pkrs
 
 VERBOSE = False
-equity_table = pd.read_csv('/home/harry/deepcfr/equity_table.csv')
+equity_table = pd.read_csv('/home/harry/deepcfr/equity_table.csv', dtype={'hand': str, 'equity': float})
 
 
 def set_verbose(verbose_mode):
@@ -121,7 +121,6 @@ def encode_state(state, player_id=0):
         suit_map = {'Spades': 's', 'Hearts': 'h', 'Diamonds': 'd', 'Clubs': 'c'}
         ranks = [str(card.rank).split('.')[-1] for card in hand_cards]
         suits = [str(card.suit).split('.')[-1] for card in hand_cards]
-        # Sort by rank value (descending)
         rank_values = [list(rank_map.keys()).index(r) for r in ranks]
         sorted_pairs = sorted(zip(rank_values, ranks, suits), reverse=True)
         rank1, rank2 = sorted_pairs[0][1], sorted_pairs[1][1]
@@ -129,6 +128,7 @@ def encode_state(state, player_id=0):
         hand_str = f"{rank_map[rank1]}{rank_map[rank2]}{'s' if suit1 == suit2 else 'o'}"
         if VERBOSE:
             print(f"Hand cards: {hand_cards}, Ranks: {ranks}, Suits: {suits}, Hand str: {hand_str}")
+            print(f"CSV first row: {equity_table.head(1)}")
         try:
             preflop_equity = equity_table.loc[equity_table['hand'] == hand_str, 'equity'].values[0]
         except (IndexError, KeyError) as e:
