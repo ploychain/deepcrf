@@ -1,20 +1,73 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import pokers as pkrs
 
+# ===================== 全局常量与配置 =====================
 VERBOSE = False
-equity_table = pd.read_csv('/home/harry/deepcfr/equity_table.csv', dtype={'hand': str, 'equity': float})
+EQUITY_PATH = '/home/harry/deepcfr/equity_table.csv'
+
+# 加载 Equity 表（一次性全局加载）
+equity_table = pd.read_csv(EQUITY_PATH, dtype={'hand': str, 'equity': float})
 equity_table['hand'] = equity_table['hand'].astype(str).str.strip().str.upper()
 
+# rank/suit 映射常量
+RANK_MAP = {'R2': 1, 'R3': 2, 'R4': 3, 'R5': 4, 'R6': 5, 'R7': 6,
+            'R8': 7, 'R9': 8, 'RT': 9, 'RJ': 10, 'RQ': 11, 'RK': 12, 'RA': 13}
+SUIT_MAP = {'Spades': 0, 'Hearts': 1, 'Diamonds': 2, 'Clubs': 3}
 
-def set_verbose(verbose_mode):
+RANK_CHAR_MAP = {'R2': '2', 'R3': '3', 'R4': '4', 'R5': '5', 'R6': '6', 'R7': '7',
+                 'R8': '8', 'R9': '9', 'RT': 'T', 'RJ': 'J', 'RQ': 'Q', 'RK': 'K', 'RA': 'A'}
+
+# ===================== 函数定义 =====================
+def set_verbose(verbose_mode: bool):
     global VERBOSE
     VERBOSE = verbose_mode
 
 
+def encode_cards(cards):
+    """将牌面列表编码为 52 维 one-hot 向量"""
+    vec = np.zeros(52)
+    for card in cards:
+        rank_str = str(card.rank).split('.')[-1]
+        suit_str = str(card.suit).split('.')[-1]
+        card_idx = SUIT_MAP[suit_str] * 13 + RANK_MAP[rank_str]
+        vec[card_idx] = 1
+    return vec
+
+
+def get_preflop_equity(hand_cards):
+    """根据两张手牌查表获得 preflop equity"""
+    if not hand_cards:
+        return 0.0
+
+    ranks = [str(c.rank).split('.')[-1] for c in hand_cards]
+    suits = [str(c.suit).split('.')[-1] for c in hand_cards]
+
+    rank_order = list(RANK_MAP.keys())
+    sorted_cards = sorted(zip(ranks, suits), key=lambda x: rank_order.index(x[0]), reverse=True)
+    rank1, suit1 = sorted_cards[0]
+    rank2, suit2 = sorted_cards[1]
+
+    r1 = RANK_CHAR_MAP[rank1]
+    r2 = RANK_CHAR_MAP[rank2]
+    suited = 's' if suit1 == suit2 else 'o'
+    hand_str = f"{r1}{r2}{suited}".upper()
+
+    match = equity_table[equity_table['hand'] == hand_str]
+    if not match.empty:
+        equity = float(match['equity'].values[0])
+        if VERBOSE:
+            print(f"[DEBUG] Found equity for {hand_str}: {equity:.6f}")
+        return equity
+
+    if VERBOSE:
+        print(f"[WARN] Hand {hand_str} not found in equity table.")
+    return 0.0
+
+
+# ===================== 模型定义 =====================
 class PokerNetwork(nn.Module):
     def __init__(self, input_size=500, hidden_size=512, num_actions=3):
         super().__init__()
@@ -41,6 +94,7 @@ class PokerNetwork(nn.Module):
         return action_logits, bet_size
 
 
+# ===================== 主编码函数 =====================
 def encode_state(state, player_id=0):
     encoded = []
     num_players = len(state.players_state)
@@ -50,140 +104,65 @@ def encode_state(state, player_id=0):
         print(f"Player states: {[(p.player, p.stake, p.bet_chips) for p in state.players_state]}")
         print(f"Pot: {state.pot}")
 
-    hand_cards = state.players_state[player_id].hand
-    hand_enc = np.zeros(52)
-    for card in hand_cards:
-        rank_map = {'R2': 1, 'R3': 2, 'R4': 3, 'R5': 4, 'R6': 5, 'R7': 6, 'R8': 7, 'R9': 8,
-                    'RT': 9, 'RJ': 10, 'RQ': 11, 'RK': 12, 'RA': 13}
-        suit_map = {'Spades': 0, 'Hearts': 1, 'Diamonds': 2, 'Clubs': 3}
-        rank_str = str(card.rank).split('.')[-1]
-        suit_str = str(card.suit).split('.')[-1]
-        card_idx = suit_map[suit_str] * 13 + rank_map[rank_str]
-        hand_enc[card_idx] = 1
-    encoded.append(hand_enc)
+    # Encode cards
+    encoded.append(encode_cards(state.players_state[player_id].hand))   # 手牌
+    encoded.append(encode_cards(state.public_cards))                    # 公共牌
 
-    community_enc = np.zeros(52)
-    for card in state.public_cards:
-        rank_map = {'R2': 1, 'R3': 2, 'R4': 3, 'R5': 4, 'R6': 5, 'R7': 6, 'R8': 7, 'R9': 8,
-                    'RT': 9, 'RJ': 10, 'RQ': 11, 'RK': 12, 'RA': 13}
-        suit_map = {'Spades': 0, 'Hearts': 1, 'Diamonds': 2, 'Clubs': 3}
-        rank_str = str(card.rank).split('.')[-1]
-        suit_str = str(card.suit).split('.')[-1]
-        card_idx = suit_map[suit_str] * 13 + rank_map[rank_str]
-        community_enc[card_idx] = 1
-    encoded.append(community_enc)
-
+    # Encode stage (5维 one-hot)
     stage_enc = np.zeros(5)
     stage_enc[int(state.stage)] = 1
     encoded.append(stage_enc)
 
-    initial_stake = state.players_state[0].stake
-    if initial_stake <= 0:
-        if VERBOSE:
-            print(f"WARNING: Initial stake is zero or negative: {initial_stake}")
-        initial_stake = 1.0
-    pot_enc = [state.pot / initial_stake]
-    encoded.append(pot_enc)
+    # Stake normalization
+    initial_stake = max(state.players_state[0].stake, 1.0)
 
-    button_enc = np.zeros(num_players)
-    button_enc[state.button] = 1
+    # Encode pot, button, current player
+    encoded.append([state.pot / initial_stake])
+    button_enc = np.eye(num_players)[state.button]
+    current_player_enc = np.eye(num_players)[state.current_player]
     encoded.append(button_enc)
-
-    current_player_enc = np.zeros(num_players)
-    current_player_enc[state.current_player] = 1
     encoded.append(current_player_enc)
 
+    # Encode per-player info
     for p in range(num_players):
-        player_state = state.players_state[p]
-        active_enc = [1.0 if player_state.active else 0.0]
-        bet_enc = [player_state.bet_chips / initial_stake]
-        pot_chips_enc = [player_state.pot_chips / initial_stake]
-        stake_enc = [player_state.stake / initial_stake]
-        encoded.append(np.concatenate([active_enc, bet_enc, pot_chips_enc, stake_enc]))
+        ps = state.players_state[p]
+        encoded.append([
+            1.0 if ps.active else 0.0,
+            ps.bet_chips / initial_stake,
+            ps.pot_chips / initial_stake,
+            ps.stake / initial_stake
+        ])
 
-    min_bet_enc = [state.min_bet / initial_stake]
-    encoded.append(min_bet_enc)
-
+    # Encode min bet and legal actions
+    encoded.append([state.min_bet / initial_stake])
     legal_actions_enc = np.zeros(4)
-    for action_enum in state.legal_actions:
-        legal_actions_enc[int(action_enum)] = 1
+    for a in state.legal_actions:
+        legal_actions_enc[int(a)] = 1
     encoded.append(legal_actions_enc)
 
+    # Encode previous action
     prev_action_enc = np.zeros(5)
     if state.from_action is not None:
         prev_action_enc[int(state.from_action.action.action)] = 1
         prev_action_enc[4] = state.from_action.action.amount / initial_stake
     encoded.append(prev_action_enc)
 
-    preflop_equity = 0.0
-    if not state.public_cards and hand_cards:
-        # 定义 rank 映射表（与 CSV 完全匹配）
-        rank_char_map = {
-            'R2': '2', 'R3': '3', 'R4': '4', 'R5': '5', 'R6': '6',
-            'R7': '7', 'R8': '8', 'R9': '9', 'RT': 'T', 'RJ': 'J',
-            'RQ': 'Q', 'RK': 'K', 'RA': 'A'
-        }
-        suit_char_map = {
-            'Spades': 's', 'Hearts': 'h', 'Diamonds': 'd', 'Clubs': 'c'
-        }
+    # Encode preflop equity (only preflop stage)
+    preflop_equity = get_preflop_equity(state.players_state[player_id].hand) if not state.public_cards else 0.0
+    encoded.append([preflop_equity])
 
-        ranks = [str(card.rank).split('.')[-1] for card in hand_cards]
-        suits = [str(card.suit).split('.')[-1] for card in hand_cards]
-
-        # 排序：按 rank 强度从大到小排序
-        rank_order = {r: i for i, r in enumerate(
-            ['R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'RT', 'RJ', 'RQ', 'RK', 'RA']
-        )}
-        sorted_cards = sorted(zip(ranks, suits), key=lambda x: rank_order[x[0]], reverse=True)
-        rank1, suit1 = sorted_cards[0]
-        rank2, suit2 = sorted_cards[1]
-
-        # 构造手牌字符串（例如 A2s, KQo, 23o）
-        r1 = rank_char_map[rank1]
-        r2 = rank_char_map[rank2]
-        suited = 's' if suit1 == suit2 else 'o'
-        hand_str = f"{r1}{r2}{suited}"
-
-        if VERBOSE:
-            print(f"[DEBUG] Hand parsed -> {repr(hand_str)} (upper={repr(hand_str.upper())})")
-
-        # 查找对应胜率
-        try:
-            clean_hand = str(hand_str).strip().upper()
-            if VERBOSE:
-                print(f"[DEBUG] Lookup clean_hand={clean_hand}, table sample={equity_table['hand'].iloc[:5].tolist()}")
-            # 确保表列是大写
-            match = equity_table[equity_table['hand'].astype(str).str.strip().str.upper() == clean_hand]
-            if not match.empty:
-                preflop_equity = float(match['equity'].values[0])
-                if VERBOSE:
-                    print(f"[DEBUG] Found match for {clean_hand}: {preflop_equity}")
-            else:
-                if VERBOSE:
-                    print(f"WARNING: Hand {clean_hand} not found in equity table.")
-        except Exception as e:
-            if VERBOSE:
-                print(f"WARNING: Equity lookup failed for {hand_str}: {e}")
-            preflop_equity = 0.0
-
-    equity_enc = [preflop_equity]
-    encoded.append(equity_enc)
-
+    # Final flatten + fix dimension
     x = np.concatenate(encoded)
-
-    # 如果超过500，截断保留前499并把最后一位设为equity
-    if len(x) > 500:
+    TARGET_DIM = 500
+    if len(x) > TARGET_DIM:
         if VERBOSE:
             print(f"[DEBUG] Input too long ({len(x)}), truncating and preserving equity={preflop_equity}")
-        x = np.concatenate([x[:499], [preflop_equity]])
-
-    # 如果不足500，填充0，但保留最后一位为equity
-    elif len(x) < 500:
-        x = np.pad(x, (0, 500 - len(x)), mode='constant')
+        x = np.concatenate([x[:TARGET_DIM - 1], [preflop_equity]])
+    elif len(x) < TARGET_DIM:
+        x = np.pad(x, (0, TARGET_DIM - len(x)), mode='constant')
         x[-1] = preflop_equity
 
     if VERBOSE:
-        print(f"[DEBUG] Final equity used: {preflop_equity}")
-        print(f"[DEBUG] Final vector length: {len(x)}")
+        print(f"[DEBUG] Final vector length: {len(x)} | Final equity: {preflop_equity}")
 
     return x
