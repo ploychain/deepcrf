@@ -6,7 +6,8 @@ import pandas as pd
 import pokers as pkrs
 
 VERBOSE = False
-equity_table = pd.read_csv('/home/harry/deepcfr/equity_table.csv', dtype={'hand': str, 'equity': float}, skipinitialspace=True)
+equity_table = pd.read_csv('../../equity_table.csv', dtype={'hand': str, 'equity': float})
+equity_table['hand'] = equity_table['hand'].astype(str).str.strip().str.upper()
 
 
 def set_verbose(verbose_mode):
@@ -148,7 +149,7 @@ def encode_state(state, player_id=0):
 
         # 查找对应胜率
         try:
-            match = equity_table[equity_table['hand'].str.strip() == hand_str]
+            match = equity_table[equity_table['hand'] == hand_str.upper()]
             if not match.empty:
                 preflop_equity = float(match['equity'].values[0])
             else:
