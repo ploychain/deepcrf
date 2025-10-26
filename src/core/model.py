@@ -126,9 +126,6 @@ def encode_state(state, player_id=0):
         rank1, rank2 = sorted_pairs[0][1], sorted_pairs[1][1]
         suit1, suit2 = sorted_pairs[0][2], sorted_pairs[1][2]
         hand_str = f"{rank_map[rank1]}{rank_map[rank2]}{'s' if suit1 == suit2 else 'o'}".strip().lower()
-        if VERBOSE:
-            print(f"Hand cards: {hand_cards}, Ranks: {ranks}, Suits: {suits}, Hand str: {hand_str}")
-            print(f"CSV sample for 42o: {equity_table[equity_table['hand'] == '42o']}")
         try:
             preflop_equity = equity_table.loc[equity_table['hand'].str.strip() == hand_str, 'equity'].values[0]
         except (IndexError, KeyError) as e:
