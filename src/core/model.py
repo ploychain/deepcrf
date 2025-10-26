@@ -6,7 +6,7 @@ import pandas as pd
 import pokers as pkrs
 
 VERBOSE = False
-equity_table = pd.read_csv('../../equity_table.csv', dtype={'hand': str, 'equity': float})
+equity_table = pd.read_csv('/home/harry/deepcfr/equity_table.csv', dtype={'hand': str, 'equity': float})
 equity_table['hand'] = equity_table['hand'].astype(str).str.strip().str.upper()
 
 
