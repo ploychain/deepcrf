@@ -145,7 +145,7 @@ def encode_state(state, player_id=0):
         hand_str = f"{r1}{r2}{suited}"
 
         if VERBOSE:
-            print(f"[DEBUG] Hand parsed -> {hand_str}")
+            print(f"[DEBUG] Hand parsed -> {repr(hand_str)} (upper={repr(hand_str.upper())})")
 
         # 查找对应胜率
         try:
