@@ -6,7 +6,7 @@ import pandas as pd
 import pokers as pkrs
 
 VERBOSE = False
-equity_table = pd.read_csv('/home/harry/deepcfr/equity_table.csv', dtype={'hand': str, 'equity': float}, skipinitialspace=True)
+equity_table = pd.read_csv('../../equity_table.csv', dtype={'hand': str, 'equity': float}, skipinitialspace=True)
 
 
 def set_verbose(verbose_mode):
@@ -116,24 +116,48 @@ def encode_state(state, player_id=0):
 
     preflop_equity = 0.0
     if not state.public_cards and hand_cards:
-        rank_map = {'R2': '2', 'R3': '3', 'R4': '4', 'R5': '5', 'R6': '6', 'R7': '7', 'R8': '8',
-                    'R9': '9', 'RT': 'T', 'RJ': 'J', 'RQ': 'Q', 'RK': 'K', 'RA': 'A'}
-        suit_map = {'Spades': 's', 'Hearts': 'h', 'Diamonds': 'd', 'Clubs': 'c'}
+        # 定义 rank 映射表（与 CSV 完全匹配）
+        rank_char_map = {
+            'R2': '2', 'R3': '3', 'R4': '4', 'R5': '5', 'R6': '6',
+            'R7': '7', 'R8': '8', 'R9': '9', 'RT': 'T', 'RJ': 'J',
+            'RQ': 'Q', 'RK': 'K', 'RA': 'A'
+        }
+        suit_char_map = {
+            'Spades': 's', 'Hearts': 'h', 'Diamonds': 'd', 'Clubs': 'c'
+        }
+
         ranks = [str(card.rank).split('.')[-1] for card in hand_cards]
         suits = [str(card.suit).split('.')[-1] for card in hand_cards]
-        rank_values = [list(rank_map.keys()).index(r) for r in ranks]
-        sorted_pairs = sorted(zip(rank_values, ranks, suits), reverse=True)
-        rank1, rank2 = sorted_pairs[0][1], sorted_pairs[1][1]
-        suit1, suit2 = sorted_pairs[0][2], sorted_pairs[1][2]
-        hand_str = f"{rank_map[rank1]}{rank_map[rank2]}{'s' if suit1 == suit2 else 'o'}".strip().lower()
+
+        # 排序：按 rank 强度从大到小排序
+        rank_order = {r: i for i, r in enumerate(
+            ['R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'RT', 'RJ', 'RQ', 'RK', 'RA']
+        )}
+        sorted_cards = sorted(zip(ranks, suits), key=lambda x: rank_order[x[0]], reverse=True)
+        rank1, suit1 = sorted_cards[0]
+        rank2, suit2 = sorted_cards[1]
+
+        # 构造手牌字符串（例如 A2s, KQo, 23o）
+        r1 = rank_char_map[rank1]
+        r2 = rank_char_map[rank2]
+        suited = 's' if suit1 == suit2 else 'o'
+        hand_str = f"{r1}{r2}{suited}"
+
         if VERBOSE:
-            print(f"Hand cards: {hand_cards}, Ranks: {ranks}, Suits: {suits}, Hand str: {hand_str}")
-            print(f"CSV sample for 42o: {equity_table[equity_table['hand'] == '42o']}")
+            print(f"[DEBUG] Hand parsed -> {hand_str}")
+
+        # 查找对应胜率
         try:
-            preflop_equity = equity_table.loc[equity_table['hand'].str.strip() == hand_str, 'equity'].values[0]
-        except (IndexError, KeyError) as e:
+            match = equity_table[equity_table['hand'].str.strip() == hand_str]
+            if not match.empty:
+                preflop_equity = float(match['equity'].values[0])
+            else:
+                if VERBOSE:
+                    print(f"WARNING: Hand {hand_str} not found in equity table.")
+        except Exception as e:
             if VERBOSE:
-                print(f"WARNING: Equity not found for hand {hand_str}, error: {e}")
+                print(f"WARNING: Equity lookup failed for {hand_str}: {e}")
+            preflop_equity = 0.0
     equity_enc = [preflop_equity]
     encoded.append(equity_enc)
 
