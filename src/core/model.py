@@ -6,7 +6,7 @@ import pandas as pd
 import pokers as pkrs
 
 VERBOSE = False
-equity_table = pd.read_csv('../../equity_table.csv')  # From src/core/ to root
+equity_table = pd.read_csv('/home/harry/deepcfr/equity_table.csv')  # From src/core/ to root
 
 
 def set_verbose(verbose_mode):
