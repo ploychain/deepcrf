@@ -52,23 +52,19 @@ def encode_state(state, player_id=0):
     hand_cards = state.players_state[player_id].hand
     hand_enc = np.zeros(52)
     for card in hand_cards:
-        rank_idx = {pkrs.CardRank.R2: 1, pkrs.CardRank.R3: 2, pkrs.CardRank.R4: 3, pkrs.CardRank.R5: 4,
-                    pkrs.CardRank.R6: 5, pkrs.CardRank.R7: 6, pkrs.CardRank.R8: 7, pkrs.CardRank.R9: 8,
-                    pkrs.CardRank.RT: 9, pkrs.CardRank.RJ: 10, pkrs.CardRank.RQ: 11, pkrs.CardRank.RK: 12,
-                    pkrs.CardRank.RA: 13}
-        suit_idx = {pkrs.CardSuit.Spades: 0, pkrs.CardSuit.Hearts: 1, pkrs.CardSuit.Diamonds: 2, pkrs.CardSuit.Clubs: 3}
-        card_idx = suit_idx[card.suit] * 13 + rank_idx[card.rank]
+        rank_map = {'R2': 1, 'R3': 2, 'R4': 3, 'R5': 4, 'R6': 5, 'R7': 6, 'R8': 7, 'R9': 8,
+                    'RT': 9, 'RJ': 10, 'RQ': 11, 'RK': 12, 'RA': 13}
+        suit_map = {'Spades': 0, 'Hearts': 1, 'Diamonds': 2, 'Clubs': 3}
+        card_idx = suit_map[str(card.suit)] * 13 + rank_map[str(card.rank)]
         hand_enc[card_idx] = 1
     encoded.append(hand_enc)
 
     community_enc = np.zeros(52)
     for card in state.public_cards:
-        rank_idx = {pkrs.CardRank.R2: 1, pkrs.CardRank.R3: 2, pkrs.CardRank.R4: 3, pkrs.CardRank.R5: 4,
-                    pkrs.CardRank.R6: 5, pkrs.CardRank.R7: 6, pkrs.CardRank.R8: 7, pkrs.CardRank.R9: 8,
-                    pkrs.CardRank.RT: 9, pkrs.CardRank.RJ: 10, pkrs.CardRank.RQ: 11, pkrs.CardRank.RK: 12,
-                    pkrs.CardRank.RA: 13}
-        suit_idx = {pkrs.CardSuit.Spades: 0, pkrs.CardSuit.Hearts: 1, pkrs.CardSuit.Diamonds: 2, pkrs.CardSuit.Clubs: 3}
-        card_idx = suit_idx[card.suit] * 13 + rank_idx[card.rank]
+        rank_map = {'R2': 1, 'R3': 2, 'R4': 3, 'R5': 4, 'R6': 5, 'R7': 6, 'R8': 7, 'R9': 8,
+                    'RT': 9, 'RJ': 10, 'RQ': 11, 'RK': 12, 'RA': 13}
+        suit_map = {'Spades': 0, 'Hearts': 1, 'Diamonds': 2, 'Clubs': 3}
+        card_idx = suit_map[str(card.suit)] * 13 + rank_map[str(card.rank)]
         community_enc[card_idx] = 1
     encoded.append(community_enc)
 
@@ -116,16 +112,17 @@ def encode_state(state, player_id=0):
 
     preflop_equity = 0.0
     if not state.public_cards and hand_cards:
-        rank_map = {pkrs.CardRank.R2: '2', pkrs.CardRank.R3: '3', pkrs.CardRank.R4: '4', pkrs.CardRank.R5: '5',
-                    pkrs.CardRank.R6: '6', pkrs.CardRank.R7: '7', pkrs.CardRank.R8: '8', pkrs.CardRank.R9: '9',
-                    pkrs.CardRank.RT: 'T', pkrs.CardRank.RJ: 'J', pkrs.CardRank.RQ: 'Q', pkrs.CardRank.RK: 'K',
-                    pkrs.CardRank.RA: 'A'}
-        suit_map = {pkrs.CardSuit.Spades: 's', pkrs.CardSuit.Hearts: 'h', pkrs.CardSuit.Diamonds: 'd',
-                    pkrs.CardSuit.Clubs: 'c'}
-        ranks = [card.rank for card in hand_cards]
-        suits = [card.suit for card in hand_cards]
-        rank1, rank2 = (ranks[0], ranks[1]) if ranks[0].value >= ranks[1].value else (ranks[1], ranks[0])
-        hand_str = f"{rank_map[rank1]}{rank_map[rank2]}{'s' if suits[0] == suits[1] else 'o'}"
+        rank_map = {'R2': '2', 'R3': '3', 'R4': '4', 'R5': '5', 'R6': '6', 'R7': '7', 'R8': '8',
+                    'R9': '9', 'RT': 'T', 'RJ': 'J', 'RQ': 'Q', 'RK': 'K', 'RA': 'A'}
+        suit_map = {'Spades': 's', 'Hearts': 'h', 'Diamonds': 'd', 'Clubs': 'c'}
+        ranks = [str(card.rank) for card in hand_cards]
+        suits = [str(card.suit) for card in hand_cards]
+        # Sort by rank value
+        rank_values = [list(rank_map.keys()).index(r) for r in ranks]
+        sorted_pairs = sorted(zip(rank_values, ranks, suits), reverse=True)
+        rank1, rank2 = sorted_pairs[0][1], sorted_pairs[1][1]
+        suit1, suit2 = sorted_pairs[0][2], sorted_pairs[1][2]
+        hand_str = f"{rank_map[rank1]}{rank_map[rank2]}{'s' if suit1 == suit2 else 'o'}"
         if VERBOSE:
             print(f"Hand cards: {hand_cards}, Ranks: {ranks}, Suits: {suits}, Hand str: {hand_str}")
         try:
