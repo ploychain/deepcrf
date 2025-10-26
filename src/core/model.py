@@ -96,73 +96,106 @@ class PokerNetwork(nn.Module):
 
 # ===================== 主编码函数 =====================
 def encode_state(state, player_id=0):
+    """
+    Encode a full Pokers state into a fixed-length (500,) vector.
+    - 保证维度恒定
+    - preflop_equity 永远放在最后
+    - 每个模块长度固定，不依赖状态变化
+    """
     encoded = []
-    num_players = len(state.players_state)
+    num_players = 6  # ✅ 固定6人桌，确保长度恒定
 
-    if VERBOSE:
-        print(f"Encoding state: current_player={state.current_player}, stage={state.stage}")
-        print(f"Player states: {[(p.player, p.stake, p.bet_chips) for p in state.players_state]}")
-        print(f"Pot: {state.pot}")
+    # ---------- 1. 手牌编码 (52维 one-hot) ----------
+    hand_enc = np.zeros(52)
+    for card in state.players_state[player_id].hand:
+        card_idx = int(card.suit) * 13 + int(card.rank)
+        hand_enc[card_idx] = 1
+    encoded.append(hand_enc)
 
-    # Encode cards
-    encoded.append(encode_cards(state.players_state[player_id].hand))   # 手牌
-    encoded.append(encode_cards(state.public_cards))                    # 公共牌
+    # ---------- 2. 公共牌编码 (52维 one-hot) ----------
+    community_enc = np.zeros(52)
+    for card in state.public_cards:
+        card_idx = int(card.suit) * 13 + int(card.rank)
+        community_enc[card_idx] = 1
+    encoded.append(community_enc)
 
-    # Encode stage (5维 one-hot)
+    # ---------- 3. 阶段编码 (5维 one-hot) ----------
     stage_enc = np.zeros(5)
     stage_enc[int(state.stage)] = 1
     encoded.append(stage_enc)
 
-    # Stake normalization
-    initial_stake = max(state.players_state[0].stake, 1.0)
+    # ---------- 4. 彩池大小 (1维，归一化) ----------
+    initial_stake = max(1.0, state.players_state[0].stake)
+    pot_enc = np.array([state.pot / initial_stake])
+    encoded.append(pot_enc)
 
-    # Encode pot, button, current player
-    encoded.append([state.pot / initial_stake])
-    button_enc = np.eye(num_players)[state.button]
-    current_player_enc = np.eye(num_players)[state.current_player]
-    encoded.append(button_enc)
-    encoded.append(current_player_enc)
+    # ---------- 5. 庄位与当前行动者 (6+6维 one-hot) ----------
+    button_enc = np.zeros(num_players)
+    button_enc[state.button % num_players] = 1
+    current_enc = np.zeros(num_players)
+    current_enc[state.current_player % num_players] = 1
+    encoded.extend([button_enc, current_enc])
 
-    # Encode per-player info
+    # ---------- 6. 每个玩家状态 (6×4维) ----------
     for p in range(num_players):
-        ps = state.players_state[p]
-        encoded.append([
-            1.0 if ps.active else 0.0,
-            ps.bet_chips / initial_stake,
-            ps.pot_chips / initial_stake,
-            ps.stake / initial_stake
-        ])
+        if p < len(state.players_state):
+            ps = state.players_state[p]
+            active = 1.0 if ps.active else 0.0
+            bet = ps.bet_chips / initial_stake
+            pot_chips = ps.pot_chips / initial_stake
+            stake = ps.stake / initial_stake
+        else:
+            active = bet = pot_chips = stake = 0.0
+        encoded.append(np.array([active, bet, pot_chips, stake]))
 
-    # Encode min bet and legal actions
-    encoded.append([state.min_bet / initial_stake])
-    legal_actions_enc = np.zeros(4)
-    for a in state.legal_actions:
-        legal_actions_enc[int(a)] = 1
-    encoded.append(legal_actions_enc)
+    # ---------- 7. 最小下注 (1维) ----------
+    encoded.append(np.array([state.min_bet / initial_stake]))
 
-    # Encode previous action
-    prev_action_enc = np.zeros(5)
+    # ---------- 8. 合法动作 (4维固定 one-hot) ----------
+    legal_enc = np.zeros(4)
+    for action_enum in state.legal_actions:
+        idx = min(int(action_enum), 3)
+        legal_enc[idx] = 1
+    encoded.append(legal_enc)
+
+    # ---------- 9. 上一步动作 (5维固定: 4种动作 + 金额) ----------
+    prev_enc = np.zeros(5)
     if state.from_action is not None:
-        prev_action_enc[int(state.from_action.action.action)] = 1
-        prev_action_enc[4] = state.from_action.action.amount / initial_stake
-    encoded.append(prev_action_enc)
+        idx = min(int(state.from_action.action.action), 3)
+        prev_enc[idx] = 1
+        prev_enc[4] = state.from_action.action.amount / initial_stake
+    encoded.append(prev_enc)
 
-    # Encode preflop equity (only preflop stage)
-    preflop_equity = get_preflop_equity(state.players_state[player_id].hand) if not state.public_cards else 0.0
-    encoded.append([preflop_equity])
-
-    # Final flatten + fix dimension
-    x = np.concatenate(encoded)
-    TARGET_DIM = 500
-    if len(x) > TARGET_DIM:
+    # ---------- 10. preflop_equity (1维固定) ----------
+    preflop_equity = 0.0
+    if not state.public_cards:
+        rank_map = {'R2': '2','R3':'3','R4':'4','R5':'5','R6':'6','R7':'7','R8':'8',
+                    'R9':'9','RT':'T','RJ':'J','RQ':'Q','RK':'K','RA':'A'}
+        ranks = [str(c.rank).split('.')[-1] for c in state.players_state[player_id].hand]
+        suits = [str(c.suit).split('.')[-1] for c in state.players_state[player_id].hand]
+        ranks_char = [rank_map[r] for r in ranks]
+        suited = 's' if suits[0] == suits[1] else 'o'
+        hand_str = f"{ranks_char[0]}{ranks_char[1]}{suited}".upper()
+        match = equity_table[equity_table['hand'] == hand_str]
+        if not match.empty:
+            preflop_equity = float(match['equity'].values[0])
         if VERBOSE:
-            print(f"[DEBUG] Input too long ({len(x)}), truncating and preserving equity={preflop_equity}")
-        x = np.concatenate([x[:TARGET_DIM - 1], [preflop_equity]])
-    elif len(x) < TARGET_DIM:
-        x = np.pad(x, (0, TARGET_DIM - len(x)), mode='constant')
-        x[-1] = preflop_equity
+            print(f"[DEBUG] Found equity for {hand_str}: {preflop_equity}")
+
+    equity_enc = np.array([preflop_equity])
+    encoded.append(equity_enc)
+
+    # ---------- 11. 拼接并固定维度 ----------
+    x = np.concatenate(encoded)
+    base_len = len(x)
+
+    if base_len < 500:
+        x = np.pad(x, (0, 500 - base_len), mode='constant')
+    elif base_len > 500:
+        raise ValueError(f"[ERROR] Encoded vector too long ({base_len}) — investigate source.")
 
     if VERBOSE:
         print(f"[DEBUG] Final vector length: {len(x)} | Final equity: {preflop_equity}")
 
     return x
+
