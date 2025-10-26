@@ -55,7 +55,9 @@ def encode_state(state, player_id=0):
         rank_map = {'R2': 1, 'R3': 2, 'R4': 3, 'R5': 4, 'R6': 5, 'R7': 6, 'R8': 7, 'R9': 8,
                     'RT': 9, 'RJ': 10, 'RQ': 11, 'RK': 12, 'RA': 13}
         suit_map = {'Spades': 0, 'Hearts': 1, 'Diamonds': 2, 'Clubs': 3}
-        card_idx = suit_map[str(card.suit)] * 13 + rank_map[str(card.rank)]
+        rank_str = str(card.rank).split('.')[-1]
+        suit_str = str(card.suit).split('.')[-1]
+        card_idx = suit_map[suit_str] * 13 + rank_map[rank_str]
         hand_enc[card_idx] = 1
     encoded.append(hand_enc)
 
@@ -64,7 +66,9 @@ def encode_state(state, player_id=0):
         rank_map = {'R2': 1, 'R3': 2, 'R4': 3, 'R5': 4, 'R6': 5, 'R7': 6, 'R8': 7, 'R9': 8,
                     'RT': 9, 'RJ': 10, 'RQ': 11, 'RK': 12, 'RA': 13}
         suit_map = {'Spades': 0, 'Hearts': 1, 'Diamonds': 2, 'Clubs': 3}
-        card_idx = suit_map[str(card.suit)] * 13 + rank_map[str(card.rank)]
+        rank_str = str(card.rank).split('.')[-1]
+        suit_str = str(card.suit).split('.')[-1]
+        card_idx = suit_map[suit_str] * 13 + rank_map[rank_str]
         community_enc[card_idx] = 1
     encoded.append(community_enc)
 
@@ -115,9 +119,9 @@ def encode_state(state, player_id=0):
         rank_map = {'R2': '2', 'R3': '3', 'R4': '4', 'R5': '5', 'R6': '6', 'R7': '7', 'R8': '8',
                     'R9': '9', 'RT': 'T', 'RJ': 'J', 'RQ': 'Q', 'RK': 'K', 'RA': 'A'}
         suit_map = {'Spades': 's', 'Hearts': 'h', 'Diamonds': 'd', 'Clubs': 'c'}
-        ranks = [str(card.rank) for card in hand_cards]
-        suits = [str(card.suit) for card in hand_cards]
-        # Sort by rank value
+        ranks = [str(card.rank).split('.')[-1] for card in hand_cards]
+        suits = [str(card.suit).split('.')[-1] for card in hand_cards]
+        # Sort by rank value (descending)
         rank_values = [list(rank_map.keys()).index(r) for r in ranks]
         sorted_pairs = sorted(zip(rank_values, ranks, suits), reverse=True)
         rank1, rank2 = sorted_pairs[0][1], sorted_pairs[1][1]
