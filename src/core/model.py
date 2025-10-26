@@ -149,16 +149,23 @@ def encode_state(state, player_id=0):
 
         # 查找对应胜率
         try:
-            match = equity_table[equity_table['hand'] == hand_str.upper()]
+            clean_hand = str(hand_str).strip().upper()
+            if VERBOSE:
+                print(f"[DEBUG] Lookup clean_hand={clean_hand}, table sample={equity_table['hand'].iloc[:5].tolist()}")
+            # 确保表列是大写
+            match = equity_table[equity_table['hand'].astype(str).str.strip().str.upper() == clean_hand]
             if not match.empty:
                 preflop_equity = float(match['equity'].values[0])
+                if VERBOSE:
+                    print(f"[DEBUG] Found match for {clean_hand}: {preflop_equity}")
             else:
                 if VERBOSE:
-                    print(f"WARNING: Hand {hand_str} not found in equity table.")
+                    print(f"WARNING: Hand {clean_hand} not found in equity table.")
         except Exception as e:
             if VERBOSE:
                 print(f"WARNING: Equity lookup failed for {hand_str}: {e}")
             preflop_equity = 0.0
+
     equity_enc = [preflop_equity]
     encoded.append(equity_enc)
 
