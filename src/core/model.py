@@ -170,8 +170,20 @@ def encode_state(state, player_id=0):
     encoded.append(equity_enc)
 
     x = np.concatenate(encoded)
-    if len(x) < 500:
+
+    # 如果超过500，截断保留前499并把最后一位设为equity
+    if len(x) > 500:
+        if VERBOSE:
+            print(f"[DEBUG] Input too long ({len(x)}), truncating and preserving equity={preflop_equity}")
+        x = np.concatenate([x[:499], [preflop_equity]])
+
+    # 如果不足500，填充0，但保留最后一位为equity
+    elif len(x) < 500:
         x = np.pad(x, (0, 500 - len(x)), mode='constant')
-    elif len(x) > 500:
-        x = x[:500]
+        x[-1] = preflop_equity
+
+    if VERBOSE:
+        print(f"[DEBUG] Final equity used: {preflop_equity}")
+        print(f"[DEBUG] Final vector length: {len(x)}")
+
     return x
