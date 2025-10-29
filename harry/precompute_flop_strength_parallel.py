@@ -1,5 +1,5 @@
-import argparse, itertools, math, os, random, sys
-from collections import Counter, defaultdict
+import argparse, itertools, random
+from collections import defaultdict
 from multiprocessing import Pool, cpu_count
 
 import pandas as pd
@@ -7,11 +7,32 @@ from treys import Card, Deck, Evaluator
 
 # -------------------- 全局参数 --------------------
 RANKS = "23456789TJQKA"
-SUITS = "cdhs"  # treys 的顺序：c(梅) d(方) h(红) s(黑)
+SUITS = "cdhs"  # 用来生成新牌
 evaluator = Evaluator()
 random.seed(42)
 
-# -------------------- 工具 --------------------
+# 1) 建立 treys 的 suit_int -> 实际花色字符 映射
+#    treys 的 suit_int 不是 0/1/2/3，而是 bitmask-ish (1,2,4,8)
+SUIT_INT_TO_CHAR = {}
+for ch in SUITS:  # 'c','d','h','s'
+    test_card = Card.new("2" + ch)
+    si = Card.get_suit_int(test_card)
+    SUIT_INT_TO_CHAR[si] = ch
+# 现在，比如 SUIT_INT_TO_CHAR[1] = 'c', SUIT_INT_TO_CHAR[2] = 'd', etc.
+
+def suit_int_to_char(si):
+    return SUIT_INT_TO_CHAR[si]
+
+def new(rank_char, suit_char):
+    return Card.new(rank_char + suit_char)
+
+def card_rank_int(c):
+    return Card.get_rank_int(c)   # 2..14
+
+def card_suit_int(c):
+    return Card.get_suit_int(c)   # e.g. 1,2,4,8 (NOT 0..3)
+
+# -------------------- 起手牌 169 --------------------
 def hand_types_169():
     types = []
     for i, a in enumerate(RANKS):
@@ -22,71 +43,62 @@ def hand_types_169():
                 types += [f"{a}{a}"]
     return types  # 169
 
-def card_rank_int(c): return Card.get_rank_int(c)   # 2..14
-def card_suit_int(c): return Card.get_suit_int(c)   # 0..3
-def new(rank_char, suit_char): return Card.new(rank_char + suit_char)
-
+# -------------------- flop 规范化成 key --------------------
 def canonicalize_flop(cards3):
-    """生成 canonical key，仅用于分桶/查表；不影响胜率。"""
+    """
+    给一个真实 flop (三张 treys 牌 int)，输出 canonical key:
+    - rank_part: "14,13,12"
+    - suit_part: "aab"/"aba"/...
+    注意：排序和重标花色只用于“给这个flop一个桶的key”，不影响胜率。
+    """
     triples = [(card_rank_int(c), card_suit_int(c), c) for c in cards3]
-    triples.sort(key=lambda t: (-t[0], t[1]))  # rank降序, suit升序稳定
+    # rank 降序, suit_int 升序只是为了稳定排序
+    triples.sort(key=lambda t: (-t[0], t[1]))
+
     ranks_sorted = [t[0] for t in triples]
+
+    # 第一次出现的花色 -> 'a','b','c'
     suit_seen = {}
     next_label = 0
     labels = []
-    for _, s, _ in triples:
-        if s not in suit_seen:
-            suit_seen[s] = next_label
+    for _, s_int, _ in triples:
+        if s_int not in suit_seen:
+            suit_seen[s_int] = next_label
             next_label += 1
-        labels.append(chr(ord('a') + suit_seen[s]))
-    return f"{','.join(map(str, ranks_sorted))}|{''.join(labels)}"
+        labels.append(chr(ord('a') + suit_seen[s_int]))
+
+    rank_key = ",".join(str(r) for r in ranks_sorted)
+    suit_key = "".join(labels)
+    return f"{rank_key}|{suit_key}"
 
 def enumerate_canonical_flops():
-    """真实 52 选 3 → canonical 去重，返回代表实例（3张真实牌）和 pattern。"""
+    """
+    穷举所有真实flop (C(52,3)=22100)，
+    对每个flop生成 canonical key，去重，保存代表。
+    返回列表: [(key, (c1,c2,c3), suit_pattern)]
+    """
     deck = [new(r, s) for r in RANKS for s in SUITS]
     seen = {}
     for c1, c2, c3 in itertools.combinations(deck, 3):
-        key = canonicalize_flop([c1, c2, c3])
+        flop_cards = (c1, c2, c3)
+        key = canonicalize_flop(flop_cards)
         if key not in seen:
-            seen[key] = (c1, c2, c3)  # 选作该类的代表实例
-    # 拆出 suit pattern（'aaa','aab','aba','abb','abc' 之一）
+            seen[key] = flop_cards
+
     rows = []
-    for key, flop in seen.items():
-        suit_pat = key.split("|")[1]
-        rows.append((key, flop, suit_pat))
-    return rows  # 列表长度≈1911（与你前面一致）
+    for key, flop_cards in seen.items():
+        suit_pat = key.split("|")[1]  # 'aaa','aab','aba','abb','abc', etc.
+        rows.append((key, flop_cards, suit_pat))
+    return rows  # ~1911 项
 
-# -------------------- suit-signature 相关 --------------------
-def suit_letters_for_flop(flop):
-    """返回 flop 中实际出现的 suit 集合（以 treys suit int 表示）"""
-    return {card_suit_int(c) for c in flop}
-
-def suit_signature_for_hand_vs_flop(hand, flop):
-    """把手牌两张的花色映射为 a/b/c 或 x（x=不在 flop 花色集合里）。
-       注意：signature 保持按 rank 从大到小的手牌顺序。"""
-    # 先得到 flop 的 a/b/c 映射
-    triples = [(card_rank_int(c), card_suit_int(c), c) for c in flop]
-    triples.sort(key=lambda t: (-t[0], t[1]))
-    suit_seen = {}
-    next_label = 0
-    for _, s, _ in triples:
-        if s not in suit_seen:
-            suit_seen[s] = next_label; next_label += 1
-    # hand 排序（高->低）
-    rr = sorted([(card_rank_int(c), c) for c in hand], key=lambda t: -t[0])
-    tokens = []
-    for _, c in rr:
-        s = card_suit_int(c)
-        if s in suit_seen:
-            tokens.append(chr(ord('a') + suit_seen[s]))
-        else:
-            tokens.append('x')
-    return "".join(tokens)
-
+# -------------------- suit-signature 生成 --------------------
 def all_target_signatures(flop_pattern, htype_kind):
-    """根据 flop 花色模式 和 手牌类别，枚举理论上可达的 signature 集合。
-       htype_kind ∈ {'pair','suited','offsuit'}。
     """
+    给定 flop 的花色pattern（'aaa','aab','aba','abb','abc'）
+    和 手牌类别 ('pair','suited','offsuit')，
+    返回这类组合理论上可能出现的 signature 集合（如 'aa','ax','xx','ab','ba',...）
+    """
+    # 哪些花色标签在 flop 里存在
     avail = {
         "aaa": ['a'],
         "aab": ['a','b'],
@@ -95,140 +107,198 @@ def all_target_signatures(flop_pattern, htype_kind):
         "abc": ['a','b','c'],
     }
     L = avail[flop_pattern]
-    Lx = L + ['x']
+    Lx = L + ['x']  # 'x' = 不在flop里的花色
 
-    if htype_kind == 'suited':
-        return {t+t for t in Lx}  # aa,bb,cc,xx（按可用字母裁剪）
-    elif htype_kind == 'offsuit':
-        return {a+b for a in Lx for b in Lx if a != b}  # 有序对
-    else:  # pair
-        S = {a+b for a in Lx for b in Lx if a != b}
-        S.add('xx')  # 两张都不在 flop 花色集合里（具体不同色），用一个 'xx' 槽近似
-        return S
+    if htype_kind == 'suited':  # AKs: 两张同花 => token必须一样
+        return {t+t for t in Lx}  # {'aa','bb','cc','xx'} (裁剪到存在的字母)
 
-# -------------------- 手牌实例化（生成与 signature 一致的具体两张牌） --------------------
+    elif htype_kind == 'offsuit':  # AKo: 两张不同花 => token必须不一样
+        sigs = set()
+        for a in Lx:
+            for b in Lx:
+                if a != b:
+                    sigs.add(a+b)  # 有序对
+        return sigs
+
+    else:  # pair: AA 口袋对子 -> 两张不同花，但同rank
+        # 近似：允许所有不同花组合 + 'xx'
+        sigs = set()
+        for a in Lx:
+            for b in Lx:
+                if a != b:
+                    sigs.add(a+b)
+        sigs.add("xx")
+        return sigs
+
 def realize_hand_for_signature(htype, flop, target_sig):
-    """给定 htype（如 'AKs','AKo','AA'）、flop（三张真实牌）、目标 signature（如 'aa','ax','ba','xx'），
-       构造一副不与 flop 冲突的具体两张牌（treys int 列表）。若不可构造则返回 None。"""
+    """
+    根据:
+      - htype: 'AKs','AKo','AA' 这种
+      - flop: 三张真实牌 (treys ints)
+      - target_sig: 比如 'aa','ax','ba','xx'，表示手牌两张的花色和翻牌花色关系
+    构造一手具体两张牌(hand=[c0,c1])，不与flop冲突。
+    如果构造不出来，返回 None。
+    """
     used = set(flop)
-    flop_suits = [card_suit_int(c) for c in flop]
-    # 建 flop suit 映射: 出现顺序 -> a,b,c
-    triples = sorted([(card_rank_int(c), card_suit_int(c), c) for c in flop], key=lambda t: (-t[0], t[1]))
+
+    # 把 flop 按 rank 降序并依次给 suit_int -> 'a','b','c' 做映射
+    triples = [(card_rank_int(c), card_suit_int(c), c) for c in flop]
+    triples.sort(key=lambda t: (-t[0], t[1]))
     suit_seen = {}
     next_label = 0
-    for _, s, _ in triples:
-        if s not in suit_seen:
-            suit_seen[s] = next_label; next_label += 1
-    # a/b/c -> 实际 suit 集
-    label2suits = {}
-    for lab, idx in [('a',0),('b',1),('c',2)]:
-        label2suits[lab] = [s for s,i in suit_seen.items() if i == idx]
-    # 可用的 x（不在 flop 的 suit）
-    flop_suit_set = set(flop_suits)
-    x_suits = [si for si in range(4) if si not in flop_suit_set]
-    # htype 解析
-    r1, r2 = htype[0], htype[1]
-    is_pair = (r1 == r2)
+    for _, s_int, _ in triples:
+        if s_int not in suit_seen:
+            suit_seen[s_int] = next_label
+            next_label += 1
+    # suit_seen: {suit_int: 0/1/2}, 0->'a',1->'b',2->'c'
+
+    # flop 使用的实际花色集合（treys suit_int）
+    flop_suit_set = set(card_suit_int(c) for c in flop)
+
+    # 给定 signature 中的一个 token ('a','b','c','x')，返回可用的 treys suit_int 列表
+    def suit_candidates_for_token(token):
+        if token == 'x':
+            # 'x' = 不在 flop 的花色
+            return [si for si in SUIT_INT_TO_CHAR.keys() if si not in flop_suit_set]
+        else:
+            # token 是 'a'/'b'/'c' -> 找所有 suit_int 映射到这个label
+            desired_idx = ord(token) - ord('a')  # 0,1,2
+            return [si for si, idx in suit_seen.items() if idx == desired_idx]
+
+    # 解析 htype
+    r_hi = htype[0]
+    r_lo = htype[1]
+    is_pair = (r_hi == r_lo)
     is_suited = (len(htype) == 3 and htype[2] == 's')
     is_offsuit = (len(htype) == 3 and htype[2] == 'o')
 
-    # 目标 signature 的两个 token 按手牌 rank 高->低顺序
-    t0, t1 = target_sig[0], target_sig[1]
-
-    # 选 rank：对子特殊；非对子按 r1>r2 排
+    # 排序手牌rank，保证第一张是高rank（因为我们在signature里假设顺序是按rank高到低）
     if is_pair:
-        ranks = [r1, r2]  # same char; 不要求同花
+        ranks_ordered = [r_hi, r_lo]  # same rank anyway
     else:
-        # 高牌在前
-        idx1 = RANKS.index(r1); idx2 = RANKS.index(r2)
-        if idx1 < idx2:
-            ranks = [r2, r1]  # 把高的放前
+        # 比较 r_hi vs r_lo 的大小
+        idx_hi = RANKS.index(r_hi)
+        idx_lo = RANKS.index(r_lo)
+        if idx_hi < idx_lo:
+            # r_hi 的位置更靠右 => r_hi 实际更大 (因为 RANKS是从2到A递增)
+            # 注意：RANKS = "23456789TJQKA" -> index越大牌越大
+            # 所以要用 index 比较大小
+            # 这里我们重新定义一下更清楚：
+            pass
+        # 我们直接重新写干净：
+        if RANKS.index(r_hi) > RANKS.index(r_lo):
+            ranks_ordered = [r_hi, r_lo]
         else:
-            ranks = [r1, r2]
+            ranks_ordered = [r_lo, r_hi]
 
-    def suit_candidates(token):
-        if token in ('a','b','c'):
-            base = []
-            for s,int_idx in suit_seen.items():
-                if int_idx == ord(token)-ord('a'):
-                    base.append(s)
-            return base
-        else:
-            return x_suits[:]  # 'x'
+    # signature 例如 'ax'，表示第一张高牌用'a'的花色，第二张低牌用'x'的花色
+    t0 = target_sig[0]
+    t1 = target_sig[1]
 
-    def pick_card(rank_char, allowed_suits):
-        # 找到一张不与 flop 冲突也不与另一张冲突的牌
-        for s in allowed_suits:
-            # treys suit 映射到字符
-            suit_char = SUITS[s]
+    cand0_suits = suit_candidates_for_token(t0)  # treys suit_int列表
+    cand1_suits = suit_candidates_for_token(t1)
+
+    # 辅助函数：在允许的 suit_int 里挑一张具体牌( rank + suit_char )，不能冲突
+    def pick_card(rank_char, allowed_suit_ints):
+        for s_int in allowed_suit_ints:
+            suit_char = suit_int_to_char(s_int)  # <-- 修正点：用映射，不再 SUITS[s_int]
             c = new(rank_char, suit_char)
             if c not in used:
                 used.add(c)
                 return c
         return None
 
-    # 同花/非同花约束
-    # - suited: 两张牌必须同 suit（同具体花色）
-    # - offsuit: 两张牌必须不同 suit（具体花色不同）
-    # - pair: 两张牌 suit 必须不同（AA同花不存在）
-    s0_cands = suit_candidates(t0)
-    s1_cands = suit_candidates(t1)
+    # 先拿第一张
+    c0 = pick_card(ranks_ordered[0], cand0_suits)
+    if c0 is None:
+        return None
+
+    # 构建第二张时，必须考虑同花/不同花约束
+    def suits_not_equal_filter(suit_int_list, suit_int_for_c0):
+        return [si for si in suit_int_list if si != suit_int_for_c0]
+
+    s0_int = card_suit_int(c0)
 
     if is_suited:
-        # 要求两张牌实际 suit 相同：在交集里挑
-        common = [s for s in s0_cands if s in s1_cands]
-        if not common: return None
-        s = common  # 允许多个可选
-        c0 = pick_card(ranks[0], s)
-        if not c0: return None
-        # 第二张与第一张同 suit
-        c1 = pick_card(ranks[1], [card_suit_int(c0)])
-        if not c1: return None
+        # 要求两张是同一实际花色
+        cand1_same = [s0_int] if s0_int in cand1_suits else []
+        c1 = pick_card(ranks_ordered[1], cand1_same)
+        if c1 is None:
+            return None
         return [c0, c1]
 
     else:
-        # 先挑第一张
-        c0 = pick_card(ranks[0], s0_cands)
-        if not c0: return None
-        # 第二张需不同 suit（offsuit/pair），且在 s1_cands 里
-        s_for_c1 = [s for s in s1_cands if s != card_suit_int(c0)]
-        if not s_for_c1: return None
-        c1 = pick_card(ranks[1], s_for_c1)
-        if not c1: return None
-        # 对子：再确认不同 suit（已保证）
+        # offsuit 或 pair: 要求不同花色
+        cand1_diff = suits_not_equal_filter(cand1_suits, s0_int)
+        c1 = pick_card(ranks_ordered[1], cand1_diff)
+        if c1 is None:
+            return None
         return [c0, c1]
 
-# -------------------- 胜率（6人桌） --------------------
+# -------------------- Monte Carlo 胜率 (6人桌) --------------------
 def hs_6max_monte(hand, flop, n_sim=150, n_players=6):
+    """
+    hand: [2 treys ints]
+    flop: (3 treys ints)
+    估算 Hero 在6人桌的胜率 (赢+平半)。
+    我们每次随机发 turn/river 和对手手牌。
+    """
     deck = Deck()
     used = set(hand + list(flop))
     deck.cards = [c for c in deck.cards if c not in used]
+
     win = tie = 0
-    need = 5 - 3  # turn+river 两张
     for _ in range(n_sim):
-        opps = [deck.draw(2) for _ in range(n_players - 1)]
-        board = list(flop) + deck.draw(need)  # 注意：这里不排序，真实集合
-        my_score = evaluator.evaluate(board, hand)
-        best_opp = min(evaluator.evaluate(board, h) for h in opps)
-        if my_score < best_opp: win += 1
-        elif my_score == best_opp: tie += 1
-        deck.cards += [c for h in opps for c in h] + board[3:]
+        # 发对手的牌
+        opp_hands = [deck.draw(2) for _ in range(n_players - 1)]
+
+        # 发 turn / river
+        board = list(flop) + deck.draw(2)  # flop三张 + turn + river
+
+        hero_score = evaluator.evaluate(board, hand)
+        opp_scores = [evaluator.evaluate(board, oh) for oh in opp_hands]
+        best_score = min([hero_score] + opp_scores)
+
+        # 胜利/平局计分
+        winners = [s for s in [hero_score] + opp_scores if s == best_score]
+        if hero_score == best_score:
+            if len(winners) == 1:
+                win += 1
+            else:
+                tie += 1
+
+        # 把发出去的牌放回去洗一下 deck
+        deck.cards += [c for oh in opp_hands for c in oh]
+        deck.cards += board[3:]  # turn/river
         random.shuffle(deck.cards)
+
     return (win + 0.5 * tie) / n_sim
 
-# -------------------- 任务切片 --------------------
+# -------------------- 每个任务 (hand_type, flop_class) --------------------
 def worker_task(args):
-    htype, flop_key, flop_cards, flop_pat, target_sigs, n_sim, n_players = args
-    out = []
-    # 判定 htype 类别
-    if len(htype) == 2: kind = 'pair'
-    else: kind = 'suited' if htype[2] == 's' else 'offsuit'
-    for sig in sorted(target_sigs):
-        hand = realize_hand_for_signature(htype, flop_cards, sig)
-        if hand is None:
-            continue
-        strength = hs_6max_monte(hand, flop_cards, n_sim=n_sim, n_players=n_players)
-        out.append({
+    htype, flop_key, flop_cards, flop_pat, n_sim, n_players = args
+
+    # 确定手牌类型类别
+    if len(htype) == 2:
+        kind = 'pair'
+    else:
+        kind = 'suited' if htype[2] == 's' else 'offsuit'
+
+    # 列出这个 (hand_type, flop_pattern) 理论上允许的所有 signature
+    sigs = all_target_signatures(flop_pat, kind)
+
+    out_rows = []
+    for sig in sorted(sigs):
+        # 尝试构建一副符合这个 signature 的具体两张手牌，且不与这三张 flop 冲突
+        hand_cards = realize_hand_for_signature(htype, flop_cards, sig)
+        if hand_cards is None:
+            continue  # 这种signature在这个具体flop上实现不了，就跳过
+
+        # Monte Carlo 求胜率
+        strength = hs_6max_monte(hand_cards, flop_cards,
+                                 n_sim=n_sim, n_players=n_players)
+
+        out_rows.append({
             "hand_type": htype,
             "canon_flop": flop_key,
             "flop_pattern": flop_pat,
@@ -236,44 +306,46 @@ def worker_task(args):
             "strength_mean": round(strength, 6),
             "n_sim": n_sim
         })
-    return out
+
+    return out_rows
 
 # -------------------- 主流程 --------------------
 def main():
+    import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=str, default="flop_strength_table.csv")
-    ap.add_argument("--n_sim", type=int, default=150)          # 可调：300 更稳
+    ap.add_argument("--n_sim", type=int, default=150)
     ap.add_argument("--players", type=int, default=6)
-    ap.add_argument("--workers", type=int, default=max(1, cpu_count()-1))
-    ap.add_argument("--quick", action="store_true", help="快速模式：仅抽样少量 flop")
+    ap.add_argument("--workers", type=int, default=max(1, cpu_count() - 1))
+    ap.add_argument("--quick", action="store_true",
+                    help="快速模式: 只取前100个flop，用来测试流程/格式")
     args = ap.parse_args()
 
-    hand_types = hand_types_169()
-    canon_flops = enumerate_canonical_flops()  # [(key, flop3, pattern)]
+    hand_types = hand_types_169()               # 169 种起手牌类别
+    flops_info = enumerate_canonical_flops()    # ~1911 个翻牌类
+                                                # [(key, flop_cards, flop_pat), ...]
 
-    # 快速模式：只取前 100 个 flop 先看格式、速度
     if args.quick:
-        canon_flops = canon_flops[:100]
-        print(f"[Quick] Using {len(canon_flops)} flops for a smoke test.")
+        flops_info = flops_info[:100]
+        print(f"[Quick] using only {len(flops_info)} flop classes to test.")
 
-    # 组装任务
+    # 组装任务：(hand_type, flop)
     tasks = []
-    for key, flop3, pat in canon_flops:
+    for flop_key, flop_cards, flop_pat in flops_info:
         for htype in hand_types:
-            kind = 'pair' if len(htype) == 2 else ('suited' if htype[2] == 's' else 'offsuit')
-            sigs = all_target_signatures(pat, kind)
-            tasks.append((htype, key, flop3, pat, sigs, args.n_sim, args.players))
+            tasks.append((htype, flop_key, flop_cards, flop_pat,
+                          args.n_sim, args.players))
 
-    print(f"Total tasks (htype × flop): {len(tasks)}  | workers: {args.workers}")
+    print(f"Total tasks: {len(tasks)} | workers: {args.workers}")
 
-    # 并行跑
-    rows = []
+    rows_collected = []
     with Pool(processes=args.workers) as pool:
+        # chunksize 调大会更快，内存也更稳
         for chunk in pool.imap_unordered(worker_task, tasks, chunksize=32):
             if chunk:
-                rows.extend(chunk)
+                rows_collected.extend(chunk)
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows_collected)
     df.to_csv(args.out, index=False)
     print(f"Saved {len(df)} rows to {args.out}")
 
