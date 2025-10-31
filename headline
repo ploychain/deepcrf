@@ -1,1 +1,9 @@
  CUDA_VISIBLE_DEVICES=0 python src/training/train.py   --iterations 1500   --traversals 20000   --strict   --save-dir ./fix_models
+
+
+
+ python harry/precompute_flop_strength_parallel.py \
+  --n_sim 500 \
+  --players 6 \
+  --workers $(nproc --all) \
+  --out flop_strength_table_nsim500.csv
