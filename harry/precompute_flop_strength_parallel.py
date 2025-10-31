@@ -102,7 +102,9 @@ def all_target_signatures(flop_pattern: str, htype_kind: str):
     if htype_kind == "suited":      # 两张同花
         return {t + t for t in Lx}
     elif htype_kind == "offsuit":   # 两张不同花（有序）
-        return {a + b for a in Lx for b in Lx if a != b}
+        S = {a + b for a in Lx for b in Lx if a != b}
+        S.add('xx')  # ← 关键修复：纳入 'xx' 桶
+        return S
     else:                           # pair（两张不同花，同时允许 'xx'）
         S = {a + b for a in Lx for b in Lx if a != b}
         S.add('xx')
