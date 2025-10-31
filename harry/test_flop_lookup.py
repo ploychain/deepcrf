@@ -6,30 +6,39 @@ from collections import Counter
 import pandas as pd
 from treys import Card, Deck
 
-RANKS = "23456789TJQKA"
+RANKS = "23456789TJQKA"   # 用于比较大小与字符<->序号转换
 SUITS = "cdhs"
 random.seed(42)
 
-# -------- 与生成脚本完全一致的工具函数 --------
 def card_rank_int(c: int) -> int:
-    rs = Card.int_to_str(c)  # e.g. 'As'
-    rch = rs[0]
-    return RANKS.index(rch) + 2  # 2..14
+    """把 treys int 牌转换成 rank 数值 2..14 (A=14)"""
+    rch = Card.int_to_str(c)[0]           # 例如 'As' -> 'A'
+    return RANKS.index(rch) + 2           # '2'->2, ..., 'A'->14
 
 def card_suit_char(c: int) -> str:
-    return Card.int_to_str(c)[1]  # 'c','d','h','s'
+    """返回 'c'/'d'/'h'/'s'"""
+    return Card.int_to_str(c)[1]
 
 def hand_type_169(c1: int, c2: int) -> str:
-    """与生成脚本同逻辑：高牌在前；对子无 s/o；非对子按是否同花加 s/o"""
-    r1, r2 = card_rank_int(c1), card_rank_int(c2)
-    rc1, rc2 = Card.STR_RANKS[r1], Card.STR_RANKS[r2]
+    """
+    生成 169 类起手牌标签：
+    - 对子: 'AA'、'TT'...
+    - 同花非对子: 'AKs'、'T9s'...
+    - 杂色非对子: 'AKo'、'T9o'...
+    （高牌在前）
+    """
+    r1_ch = Card.int_to_str(c1)[0]        # 直接取字符更稳
+    r2_ch = Card.int_to_str(c2)[0]
+
     # 让高牌在前（RANKS 越靠右越大）
-    if RANKS.index(rc1) < RANKS.index(rc2):
-        rc1, rc2, c1, c2 = rc2, rc1, c2, c1
-    if rc1 == rc2:
-        return f"{rc1}{rc2}"
+    if RANKS.index(r1_ch) < RANKS.index(r2_ch):
+        r1_ch, r2_ch, c1, c2 = r2_ch, r1_ch, c2, c1
+
+    if r1_ch == r2_ch:
+        return f"{r1_ch}{r2_ch}"
+
     suited = (card_suit_char(c1) == card_suit_char(c2))
-    return f"{rc1}{rc2}{'s' if suited else 'o'}"
+    return f"{r1_ch}{r2_ch}{'s' if suited else 'o'}"
 
 def canonicalize_flop(cards3):
     """
