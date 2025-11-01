@@ -7,3 +7,7 @@
   --players 6 \
   --workers $(nproc --all) \
   --out flop_strength_table_nsim500.csv
+
+
+python harry/precompute_turn_strength_parallel.py \
+--out turn_strength_table_nsim500.csv --n_sim 500 --workers 23
