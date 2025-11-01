@@ -58,13 +58,17 @@ def suit_signature_vs_turn(hole2, suit_seen):
 
 def build_lookup(csv_path):
     df = pd.read_csv(csv_path)
-    for col in ["hand_type","canon_turn","turn_pattern","suit_signature"]:
-        df[col] = df[col].astype(str).str.strip().str.upper()
+    # 只把 hand_type 统一成大写；其余键保持小写（与生成表一致）
+    df["hand_type"] = df["hand_type"].astype(str).str.strip().str.upper()
+    for col in ["canon_turn", "turn_pattern", "suit_signature"]:
+        df[col] = df[col].astype(str).str.strip()  # 不要 upper()
+
     lut = {}
     for _, row in df.iterrows():
         key = (row["hand_type"], row["canon_turn"], row["turn_pattern"], row["suit_signature"])
         lut[key] = float(row["strength_mean"])
     return lut
+
 
 def main():
     ap = argparse.ArgumentParser()
