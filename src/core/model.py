@@ -383,7 +383,7 @@ def encode_state(state, player_id=0):
         board = state.public_cards
 
         # 只在相应街道后才尝试计算
-        if len(board) == 3:
+        if len(board) >= 3:
             # hand_type
             htype = _hand_type_169_from_state_cards(hero[0], hero[1])
             # flop canonical + signature
@@ -396,7 +396,7 @@ def encode_state(state, player_id=0):
             elif _TREYS_OK:
                 eq_flop = _mc_equity_flop(hero, board[:3], n_players=num_players, n_sim=200)
 
-        if len(board) == 4:
+        if len(board) >= 4:
             canon_t, pat_t, seen_t = _canonicalize_turn_from_state(board[:4])
             sig_t = _suit_sig_vs_seen_for_hole(hero, seen_t)
             key4_t = (htype, _norm_canon_lower(canon_t), pat_t.lower(), sig_t.lower())
