@@ -1,85 +1,94 @@
 # coding: utf-8
+# harry/test_equity_slots.py
 import numpy as np
 import pokers as pkrs
-from src.core.model import encode_state  # 用你已经实现的 encode_state
+from src.core.model import encode_state, set_verbose
 
-# 只用 Card.from_string，尝试几种常见写法
-_SUITS = {"s": "S", "h": "H", "d": "D", "c": "C"}
-_UNICODE = {"s": "♠", "h": "♥", "d": "♦", "c": "♣"}
+# ====== 配置：根据你当前 encode_state 的布局计算 equity 槽位基准 ======
+# 你给的 encode_state（只含 preflop_equity）模块长度之和：
+# 52(hand) + 52(board) + 5(stage) + 1(pot) + 6(button) + 6(current) +
+# 24(6人*4) + 1(min_bet) + 4(legal) + 5(prev_action) = 156
+BASE_EQ_SLOT = 156  # preflop_equity 的 index
+SLOT_WINDOW = 8     # 打印 8 个槽位窗口，便于你看紧邻的 flop/turn/river 如果有的话
 
-def make_card(r: str, s: str):
-    r = r.upper()
-    s = s.lower()
-    Card = pkrs.Card
-    assert hasattr(Card, "from_string"), "你的 pokers.Card 没有 from_string 方法"
+def pick_naive_action(state: pkrs.State) -> pkrs.Action:
+    """
+    极简推进策略：优先 CHECK，其次 CALL；必要时用最小 BET/RAISE。
+    目的只是把牌局推进到下一阶段（发公共牌），不追求策略合理性。
+    """
+    AE = pkrs.ActionEnum
+    la = set(state.legal_actions)
 
-    candidates = [
-        f"{r}{s}",                 # Ah / As
-        f"{r}{s.upper()}",         # AH / AS
-        f"{r}{_SUITS[s]}",         # A + S/H/D/C
-        f"{r}{_UNICODE[s]}",       # A♠ A♥ A♦ A♣
-    ]
-    last_err = None
-    for txt in candidates:
-        try:
-            c = Card.from_string(txt)
-            if c is not None:
-                return c
-        except Exception as e:
-            last_err = e
-            continue
-    raise RuntimeError(f"Card.from_string 解析失败，试过: {candidates}，最后错误: {last_err}")
+    if AE.Check in la:
+        return pkrs.Action(AE.Check)
+    if AE.Call in la:
+        return pkrs.Action(AE.Call)
+    # 为了避免整手牌直接结束，尽量不 Fold
+    if AE.Bet in la:
+        return pkrs.Action(AE.Bet, state.min_bet)
+    if AE.Raise in la:
+        # 粗暴选一个最小加注（很多实现接受 min_bet 作为 raise 增量）
+        return pkrs.Action(AE.Raise, state.min_bet)
+    # 实在没办法才 Fold
+    return pkrs.Action(AE.Fold)
 
-def tail(name, vec, k=10):
+def advance_until_board_len(state: pkrs.State, target_len: int) -> pkrs.State:
+    """
+    一直执行最朴素动作，直到 public_cards 达到 target_len（3/4/5）或终局。
+    """
+    guard = 2000  # 防止意外死循环
+    while not state.final_state and len(state.public_cards) < target_len and guard > 0:
+        act = pick_naive_action(state)
+        nxt = state.apply_action(act)
+        if nxt.status != pkrs.StateStatus.Ok:
+            raise RuntimeError(f"状态无效: {nxt.status}, 动作: {act}")
+        state = nxt
+        guard -= 1
+    return state
+
+def show_stage(name: str, state: pkrs.State):
+    x = encode_state(state, player_id=0)
     print(f"\n{name}:")
-    print("向量长度:", len(vec))
-    print("末尾数值:", np.round(vec[-k:], 6))
+    print(f"向量长度: {len(x)}")
+    # 打印 BASE_EQ_SLOT 附近的窗口，观察 preflop 以及紧邻的 flop/turn/river 槽位
+    lo = max(0, BASE_EQ_SLOT - 2)
+    hi = BASE_EQ_SLOT + SLOT_WINDOW
+    win = x[lo:hi]
+    print(f"索引 [{lo}:{hi}) 槽位窗口 = {list(np.round(win, 6))}")
+    # 也打印末尾 10 个，避免你误以为 equity 在末尾（你的实现里不是在末尾）
+    print(f"末尾10个: {list(np.round(x[-10:], 6))}")
 
 def main():
-    # 固定一局 6 人桌
-    state = pkrs.State.from_seed(n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=42)
+    set_verbose(False)  # 如需看 encode_state 内部 debug，可设 True
 
-    # 指定 Hero 手牌（避免与公共牌冲突即可）
-    hero = state.players_state[0]
-    hero.hand = [make_card("A","s"), make_card("A","h")]
+    # 固定一个 seed，保证可复现
+    state = pkrs.State.from_seed(
+        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=42
+    )
 
-    # ------- Preflop -------
-    state.stage = 0
-    state.public_cards = []
-    x_pre = encode_state(state, 0)
-    tail("Preflop", x_pre)
+    # === Preflop ===
+    show_stage("Preflop", state)
 
-    # ------- Flop -------
-    state.stage = 1
-    state.public_cards = [make_card("K","d"), make_card("Q","s"), make_card("2","c")]
-    x_flop = encode_state(state, 0)
-    tail("Flop", x_flop)
+    # === Flop (3张公共牌) ===
+    state = advance_until_board_len(state, 3)
+    if state.final_state:
+        print("\n[WARN] 还没发到 Flop 就终局了，换个 seed 再试。")
+        return
+    show_stage("Flop", state)
 
-    # ------- Turn -------
-    state.stage = 2
-    state.public_cards = state.public_cards + [make_card("9","c")]
-    x_turn = encode_state(state, 0)
-    tail("Turn", x_turn)
+    # === Turn (第4张公共牌) ===
+    state = advance_until_board_len(state, 4)
+    if state.final_state:
+        print("\n[WARN] 还没发到 Turn 就终局了，换个 seed 再试。")
+        return
+    show_stage("Turn", state)
 
-    # ------- River -------
-    state.stage = 3
-    # River 这里不强制指定第5张，encode_state 若在 river 槽写入值，向量应变化
-    x_river = encode_state(state, 0)
-    tail("River", x_river)
-
-    # 简单对比各阶段向量是否变化（主要看靠尾部是否有改动）
-    for a_name, a, b_name, b in [
-        ("Preflop", x_pre, "Flop", x_flop),
-        ("Flop", x_flop, "Turn", x_turn),
-        ("Turn", x_turn, "River", x_river),
-    ]:
-        diff_idx = np.where(np.abs(a - b) > 1e-12)[0]
-        print(f"\n{a_name} → {b_name} 变化的索引数: {len(diff_idx)}")
-        if len(diff_idx):
-            tail_idx = [i for i in diff_idx if i >= 380]  # 偏向尾部
-            show = tail_idx[-10:] if len(tail_idx) else diff_idx[-10:]
-            print(f"示例索引: {show}")
-            print(f"{b_name} 这些索引的值:", np.round(b[show], 6))
+    # === River (第5张公共牌) ===
+    state = advance_until_board_len(state, 5)
+    if state.final_state:
+        # 正常会发到 River 才摊牌并结算
+        pass
+    show_stage("River", state)
 
 if __name__ == "__main__":
     main()
