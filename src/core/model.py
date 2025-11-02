@@ -17,8 +17,8 @@ except Exception:
 VERBOSE = False
 EQUITY_PATH = '/home/harry/deepcfr/equity_table.csv'
 # 你的 flop / turn 胜率表（和 test_lookup 用的同一份）
-FLOP_CSV_PATH = 'flop_strength_table_nsim500.csv'
-TURN_CSV_PATH = 'turn_strength_table_nsim500.csv'
+FLOP_CSV_PATH = '/home/harry/deepcfr/flop_strength_table_nsim500.csv'
+TURN_CSV_PATH = '/home/harry/deepcfr/turn_strength_table_nsim500.csv'
 
 # 加载 Equity 表（一次性全局加载）
 equity_table = pd.read_csv(EQUITY_PATH, dtype={'hand': str, 'equity': float})
