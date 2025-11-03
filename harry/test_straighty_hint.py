@@ -1,5 +1,5 @@
 import pokers as pkrs
-from harry.test_equity_slots import compute_straighty_hint  # 改成你的真实路径
+from features import compute_straighty_hint  # 改成你的真实路径
 
 def make_card(rank_char, suit_char):
     """兼容 pokers 的 Card 构造方式"""
