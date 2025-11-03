@@ -1,0 +1,37 @@
+ CUDA_VISIBLE_DEVICES=0 python src/training/train.py   --iterations 1500   --traversals 20000   --strict   --save-dir ./fix_models
+
+
+
+ python harry/precompute_flop_strength_parallel.py \
+  --n_sim 500 \
+  --players 6 \
+  --workers $(nproc --all) \
+  --out flop_strength_table_nsim500.csv
+
+
+python harry/precompute_turn_strength_parallel.py \
+--out turn_strength_table_nsim500.csv --n_sim 500 --workers 23
+
+
+特征名	维度	类型	数值范围	含义 / 目的
+highcard_on_board_norm	1	float	0~1	公共牌中最高牌归一化（A=1）。表示牌面高低。
+lowcard_on_board_norm	1	float	0~1	公共牌中最低牌归一化。辅助判断连性。
+board_gap_norm	1	float	0~1	高牌-低牌差距（归一化）。小差距=连性强。
+avg_rank_on_board_norm	1	float	0~1	平均等级。用于判断“中牌面”范围。
+paired_level	1	int	0,1,2,3,4	牌面配对层级（0=无对, 1=一对, 2=两对, 3=三条, 4=四条）。代表极化程度。
+straighty_hint	1	float	0~1	成顺潜力提示。max(rank)-min(rank) ≤ 4 则>0。
+flushy_hint	1	float	0~1	同花潜力提示（2张=0.3，3张=0.7，4张=1.0）。
+flush_on_board	1	binary	0/1	是否公共牌已有同花（river常见）。
+two_tone	1	binary	0/1	是否两同花面（flop时听花面）。
+monotone	1	binary	0/1	是否单花面（湿面）。
+rainbow	1	binary	0/1	是否彩虹面（三花色不同）。
+spr	1	float	0~10	Stack-to-Pot Ratio。表示剩余筹码压力。
+board_connectedness	1	float	0~1	牌面连接度（rank差≤1次数/组合数）。表示连性危险。
+texture_wetness_score	1	float	0~1	综合湿度 = max(flushy_hint, straighty_hint, paired_level/4)。
+
+特征名	含义
+hero_position_index	英雄位置（UTG/MP/CO/BTN/SB/BB）
+num_active_players	当前还在牌局的玩家数
+board_flush_possible_suits	当前花面类型数量（1~4）
+implied_pot_odds_hint	当前听牌投资回报比估计
+hand_potential_hint	Hand Potential / Hand Strength 实时值（从深度评估）
