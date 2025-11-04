@@ -119,10 +119,11 @@ def show_stage(name: str, state: pkrs.State):
     print(window_vals)
 
     # 关键槽位索引
-    idx_eq_flop   = BASE_EQ_SLOT - 3
-    idx_eq_turn   = BASE_EQ_SLOT - 2
-    idx_eq_river  = BASE_EQ_SLOT - 1
-    idx_straighty = BASE_EQ_SLOT
+    idx_eq_flop   = BASE_EQ_SLOT - 4
+    idx_eq_turn   = BASE_EQ_SLOT - 3
+    idx_eq_river  = BASE_EQ_SLOT - 2
+    idx_straighty = BASE_EQ_SLOT -1
+    idx_flush = BASE_EQ_SLOT
     idx_preflop   = PREFLOP_EQ_SLOT
 
     print("\n关键槽位：")
@@ -130,6 +131,7 @@ def show_stage(name: str, state: pkrs.State):
     print(f"  eq_turn    (idx {idx_eq_turn}):   {x[idx_eq_turn]:.6f}")
     print(f"  eq_river   (idx {idx_eq_river}):  {x[idx_eq_river]:.6f}")
     print(f"  straighty  (idx {idx_straighty}): {x[idx_straighty]:.6f}")
+    print(f"  flush  (idx {idx_flush}): {x[idx_flush]:.6f}")
     print(f"  preflop_eq (idx {idx_preflop}):   {x[idx_preflop]:.6f}")
 
     print(f"\n末尾10个: {list(np.round(x[-10:], 6))}")
@@ -141,7 +143,7 @@ def main():
 
     # 固定 seed，确保可复现（你可以改成 4、42 等自己玩）
     state = pkrs.State.from_seed(
-        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=1
+        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=33
     )
 
     # === Preflop ===
