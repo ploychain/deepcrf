@@ -4,7 +4,8 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 import pokers as pkrs
-from hand_straighty_potential import hand_straighty_potential
+from src.core.hand_straighty_potential import hand_straighty_potential
+
 
 # === 可选：treys 用于 MC 兜底（不存在也不影响） ===
 try:
