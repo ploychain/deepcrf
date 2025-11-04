@@ -1,12 +1,8 @@
 import pokers as pkrs
 
-def detect_card_enums():
-    for name in dir(pkrs):
-        obj = getattr(pkrs, name)
-        if hasattr(obj, "__members__"):
-            print(f"{name}: {[m for m in obj.__members__.keys()]}")
-    print("\n示例可用构造方式:")
-    print("pkrs.Card( rank_enum_value, suit_enum_value )")
+print("可能的 Rank / Suit 枚举：")
+for name in dir(pkrs):
+    obj = getattr(pkrs, name)
+    if hasattr(obj, "__members__"):
+        print(f"{name}: {list(obj.__members__.keys())}")
 
-if __name__ == "__main__":
-    detect_card_enums()
