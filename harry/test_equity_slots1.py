@@ -112,7 +112,7 @@ def show_stage(name: str, state: pkrs.State):
     print(f"Board cards ({len(board_cards)}): {board_cards}")
 
     # 槽位窗口
-    lo = max(0, BASE_EQ_SLOT - 5)
+    lo = max(0, BASE_EQ_SLOT - 6)
     hi = BASE_EQ_SLOT + SLOT_WINDOW
     window_vals = list(np.round(x[lo:hi], 6))
     print(f"槽位窗口 [{lo}:{hi}) =")
