@@ -124,7 +124,7 @@ def show_stage(name: str, state: pkrs.State):
     idx_eq_river  = BASE_EQ_SLOT - 1
     idx_straighty = BASE_EQ_SLOT
     idx_flushy    = BASE_EQ_SLOT + 1
-    idx_preflop   = PREFLOP_EQ_SLOT
+    idx_preflop   = PREFLOP_EQ_SLOT+1
 
     print("\n关键槽位：")
     print(f"  eq_flop    (idx {idx_eq_flop}):   {x[idx_eq_flop]:.6f}")
