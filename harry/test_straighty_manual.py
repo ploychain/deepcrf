@@ -4,29 +4,35 @@
 import pokers as pkrs
 from src.core.hand_straighty_potential import hand_straighty_potential
 
+def make_card(rank_num, suit_num):
+    """
+    rank_num: 2~14 （A=14）
+    suit_num: 0~3   (Spades=0, Hearts=1, Diamonds=2, Clubs=3)
+    """
+    return pkrs.Card(rank=rank_num, suit=suit_num)
+
 def main():
-    # 构造一个假的 hero 手牌（随便两张即可，这里用 As Kc）
+    # Hero 手牌随便两张（A♠ K♣）
     hero_cards = [
-        pkrs.Card(pkrs.Rank.RA, pkrs.Suit.Spades),
-        pkrs.Card(pkrs.Rank.RK, pkrs.Suit.Clubs),
+        make_card(14, 0),  # A♠
+        make_card(13, 3),  # K♣
     ]
 
-    # 人为写死 Flop = 4♦ 5♣ 6♠
+    # 固定公共牌：4♦ (rank=4, suit=2), 5♣ (rank=5, suit=3), 6♠ (rank=6, suit=0)
     board_cards = [
-        pkrs.Card(pkrs.Rank.R4, pkrs.Suit.Diamonds),  # 4♦
-        pkrs.Card(pkrs.Rank.R5, pkrs.Suit.Clubs),     # 5♣
-        pkrs.Card(pkrs.Rank.R6, pkrs.Suit.Spades),    # 6♠
+        make_card(4, 2),  # 4♦
+        make_card(5, 3),  # 5♣
+        make_card(6, 0),  # 6♠
     ]
 
-    # 假设桌上还有 5 个对手（总共 6 人桌，hero + 5）
     n_opponents = 5
 
     p = hand_straighty_potential(hero_cards, board_cards, n_opponents)
 
-    print("Hero:", hero_cards)
-    print("Board:", board_cards)
-    print("n_opponents:", n_opponents)
-    print("hand_straighty_potential (当前别人已成顺的概率) =", p)
+    print("Hero cards:", hero_cards)
+    print("Board cards:", board_cards)
+    print("Opponents:", n_opponents)
+    print("hand_straighty_potential =", p)
 
 if __name__ == "__main__":
     main()
