@@ -8,16 +8,15 @@ from src.core.model import encode_state, set_verbose
 """
 说明：
   这段脚本的目的：
-    1. 检查 encode_state 输出向量长度是否固定（预期 ~161，再 pad 到 500）
+    1. 检查 encode_state 输出向量长度是否固定（pad 到 500）
     2. 看几个关键槽位的值是否符合预期：
        - eq_flop  / eq_turn / eq_river
        - hand_straighty_potential（你新加的“别人已成顺概率”）
        - preflop_equity（起手权益）
 
   索引约定（0-based）：
-    假设你是按照我之前的方式，在 eq_flop / eq_turn / eq_river 后面
-    插入了 hand_straighty_potential，然后才是 preflop_equity，
-    那么这几个槽位的索引关系是：
+    假设在 eq_flop / eq_turn / eq_river 后面
+    插入了 hand_straighty_potential，然后才是 preflop_equity：
 
       eq_flop_index              = BASE_EQ_SLOT - 3
       eq_turn_index              = BASE_EQ_SLOT - 2
@@ -25,8 +24,7 @@ from src.core.model import encode_state, set_verbose
       hand_straighty_potential   = BASE_EQ_SLOT
       preflop_equity             = BASE_EQ_SLOT + 1
 
-    原来你测出来 preflop_equity 在 159，现在多加一个槽位，
-    就变成：
+    原来测出来 preflop_equity 在 159，现在多加一个槽位，就变成：
 
       BASE_EQ_SLOT              = 159   # hand_straighty_potential
       PREFLOP_EQ_SLOT           = 160
@@ -44,9 +42,9 @@ def pick_naive_action(state: pkrs.State) -> pkrs.Action:
     关键点：不要把 legal_actions 放进 set（ActionEnum 不可哈希）。
     """
     AE = pkrs.ActionEnum
-    la = list(state.legal_actions)  # ✅ 不用 set
+    la = list(state.legal_actions)
 
-    def has(ae):  # 更稳的包含判断
+    def has(ae):
         try:
             return any((a is ae) or (int(a) == int(ae)) for a in la)
         except Exception:
@@ -60,7 +58,6 @@ def pick_naive_action(state: pkrs.State) -> pkrs.Action:
         return pkrs.Action(AE.Bet, max(1, int(state.min_bet)))
     if has(AE.Raise):
         return pkrs.Action(AE.Raise, max(1, int(state.min_bet)))
-    # 某些实现存在 AllIn
     if hasattr(AE, "AllIn") and has(AE.AllIn):
         return pkrs.Action(AE.AllIn, 0)
     return pkrs.Action(AE.Fold)
@@ -79,19 +76,49 @@ def advance_until_board_len(state: pkrs.State, target_len: int) -> pkrs.State:
     return state
 
 
+def card_to_str(card):
+    """把 pokers.Card 转成 '6♠' 这样的字符串，方便人类看"""
+    try:
+        # rank: R2/R3/.../RT/RJ/RQ/RK/RA 取后半段去掉 R
+        rank_str = str(card.rank).split('.')[-1].replace('R', '')
+        # suit: Spades/Hearts/Diamonds/Clubs
+        suit_str = str(card.suit).split('.')[-1]
+
+        suit_symbol = {
+            'Spades':   '♠',
+            'Hearts':   '♥',
+            'Diamonds': '♦',
+            'Clubs':    '♣'
+        }.get(suit_str, '?')
+
+        rank_symbol = {
+            'T': '10', 'J': 'J', 'Q': 'Q', 'K': 'K', 'A': 'A'
+        }.get(rank_str, rank_str)
+
+        return f"{rank_symbol}{suit_symbol}"
+    except Exception:
+        return str(card)
+
+
 def show_stage(name: str, state: pkrs.State):
     x = encode_state(state, player_id=0)
     print(f"\n=== {name} ===")
     print(f"向量长度: {len(x)}")
 
+    # 打印 hero 手牌和公共牌
+    hero_hand = [card_to_str(c) for c in state.players_state[0].hand]
+    board_cards = [card_to_str(c) for c in state.public_cards]
+    print(f"Hero hand: {hero_hand}")
+    print(f"Board cards ({len(board_cards)}): {board_cards}")
+
+    # 槽位窗口
     lo = max(0, BASE_EQ_SLOT - 5)
     hi = BASE_EQ_SLOT + SLOT_WINDOW
-
     window_vals = list(np.round(x[lo:hi], 6))
     print(f"槽位窗口 [{lo}:{hi}) =")
     print(window_vals)
 
-    # 单独打印几个关键槽位，方便肉眼看
+    # 关键槽位索引
     idx_eq_flop   = BASE_EQ_SLOT - 3
     idx_eq_turn   = BASE_EQ_SLOT - 2
     idx_eq_river  = BASE_EQ_SLOT - 1
@@ -112,7 +139,7 @@ def main():
     # 关掉详细 debug
     set_verbose(False)
 
-    # 固定 seed，确保可复现
+    # 固定 seed，确保可复现（你可以改成 4、42 等自己玩）
     state = pkrs.State.from_seed(
         n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=1
     )
