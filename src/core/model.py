@@ -4,6 +4,7 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 import pokers as pkrs
+from hand_straighty_potential import hand_straighty_potential
 
 # === 可选：treys 用于 MC 兜底（不存在也不影响） ===
 try:
@@ -415,6 +416,39 @@ def encode_state(state, player_id=0):
     encoded.append(np.array([eq_flop ], dtype=np.float32))
     encoded.append(np.array([eq_turn ], dtype=np.float32))
     encoded.append(np.array([eq_river], dtype=np.float32))
+
+    # 11) hand_straighty_potential（当前街道对手已成顺的概率）
+    straighty_prob = 0.0
+    try:
+        board_cards = state.public_cards
+        hero_cards = state.players_state[player_id].hand
+
+        # 只在有公共牌（Flop 之后）时计算，Preflop 固定为 0
+        if len(board_cards) >= 3 and len(hero_cards) == 2:
+            # 当前仍在局里的对手数量（active=True，且不是自己）
+            n_opponents = 0
+            for i, ps in enumerate(state.players_state):
+                if i == player_id:
+                    continue
+                if getattr(ps, "active", False):
+                    n_opponents += 1
+
+            if n_opponents > 0:
+                straighty_prob = hand_straighty_potential(
+                    hero_cards,
+                    board_cards,
+                    n_opponents
+                )
+
+        if VERBOSE:
+            print(f"[STRAIGHTY] hand_straighty_potential = {straighty_prob:.4f}")
+
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] hand_straighty_potential compute failed: {e}")
+        straighty_prob = 0.0
+
+    encoded.append(np.array([straighty_prob], dtype=np.float32))
 
     # 11) preflop_equity（最后一维；仅 Preflop 写入）
     preflop_equity = 0.0
