@@ -112,18 +112,18 @@ def show_stage(name: str, state: pkrs.State):
     print(f"Board cards ({len(board_cards)}): {board_cards}")
 
     # 槽位窗口
-    lo = max(0, BASE_EQ_SLOT - 6)
+    lo = max(0, BASE_EQ_SLOT - 5)
     hi = BASE_EQ_SLOT + SLOT_WINDOW
     window_vals = list(np.round(x[lo:hi], 6))
     print(f"槽位窗口 [{lo}:{hi}) =")
     print(window_vals)
 
     # 关键槽位索引
-    idx_eq_flop   = BASE_EQ_SLOT - 4
-    idx_eq_turn   = BASE_EQ_SLOT - 3
-    idx_eq_river  = BASE_EQ_SLOT - 2
-    idx_straighty = BASE_EQ_SLOT -1
-    idx_flush = BASE_EQ_SLOT
+    idx_eq_flop   = BASE_EQ_SLOT - 3
+    idx_eq_turn   = BASE_EQ_SLOT - 2
+    idx_eq_river  = BASE_EQ_SLOT - 1
+    idx_straighty = BASE_EQ_SLOT
+    idx_flushy    = BASE_EQ_SLOT + 1
     idx_preflop   = PREFLOP_EQ_SLOT
 
     print("\n关键槽位：")
@@ -131,7 +131,7 @@ def show_stage(name: str, state: pkrs.State):
     print(f"  eq_turn    (idx {idx_eq_turn}):   {x[idx_eq_turn]:.6f}")
     print(f"  eq_river   (idx {idx_eq_river}):  {x[idx_eq_river]:.6f}")
     print(f"  straighty  (idx {idx_straighty}): {x[idx_straighty]:.6f}")
-    print(f"  flush  (idx {idx_flush}): {x[idx_flush]:.6f}")
+    print(f"  flushy     (idx {idx_flushy}):    {x[idx_flushy]:.6f}")
     print(f"  preflop_eq (idx {idx_preflop}):   {x[idx_preflop]:.6f}")
 
     print(f"\n末尾10个: {list(np.round(x[-10:], 6))}")
