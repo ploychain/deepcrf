@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import pokers as pkrs
 from src.core.hand_straighty_potential import hand_straighty_potential
+from src.core.hand_flushy_potential import hand_flushy_potential
+
 
 
 # === 可选：treys 用于 MC 兜底（不存在也不影响） ===
@@ -450,6 +452,26 @@ def encode_state(state, player_id=0):
         straighty_prob = 0.0
 
     encoded.append(np.array([straighty_prob], dtype=np.float32))
+
+    # 统计当前仍在局里的对手人数
+    flushy_prob = 0.0
+    try:
+        hero_cards = state.players_state[player_id].hand
+        n_opponents = sum(
+            1
+            for i, ps in enumerate(state.players_state)
+            if i != player_id and getattr(ps, "active", False)
+        )
+
+        flushy_prob = 0.0
+        if len(state.public_cards) >= 3 and len(hero_cards) == 2 and n_opponents > 0:
+            flushy_prob = hand_flushy_potential(hero_cards, state.public_cards, n_opponents)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] hand_flush_potential compute failed: {e}")
+            flushy_prob = 0.0
+    encoded.append(np.array([flushy_prob], dtype=np.float32))
+
 
     # 11) preflop_equity（最后一维；仅 Preflop 写入）
     preflop_equity = 0.0
