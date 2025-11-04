@@ -107,7 +107,7 @@ def calc_flushy_on_state(state: pkrs.State, hero_id=0) -> float:
 
 def main():
     found = 0
-    max_show = 10   # 最多展示 10 个有同花威胁的场景
+    max_show = 100   # 最多展示 10 个有同花威胁的场景
 
     for seed in range(1, 5000):
         boards = play_one_hand(seed)
