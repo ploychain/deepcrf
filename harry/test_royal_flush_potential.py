@@ -5,7 +5,7 @@
 # 打印 hand_royal_flush_potential > 0 的场景。
 
 import pokers as pkrs
-from src.core.hand_royal_flush_potential import hand_royal_flush_potential
+from src.core.hand_straight_flush_potential import hand_royal_flush_potential
 
 
 def pick_naive_action(state: pkrs.State) -> pkrs.Action:
