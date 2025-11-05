@@ -89,9 +89,9 @@ def calc_royal_on_state(state: pkrs.State, hero_id=0) -> float:
 
 def main():
     found = 0
-    max_show = 10
+    max_show = 1000
 
-    for seed in range(1, 5000):
+    for seed in range(1, 100000):
         boards = play_one_hand(seed)
         if not boards:
             continue
