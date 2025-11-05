@@ -81,7 +81,7 @@ def show_stage(name: str, state: pkrs.State):
 def main():
     # 固定 seed，确保可复现（随便挑一个，你可以换着玩）
     state = pkrs.State.from_seed(
-        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=33
+        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=44
     )
 
     # Preflop（无公共牌，高牌归一化应该是 0）
