@@ -138,7 +138,7 @@ def main():
 
             p = calc_royal_on_state(st)
             # 皇家同花顺本来就极罕见，概率会非常小，这里只要 > 0 就打印出来
-            if p > 0.006:
+            if p > 0.1:
                 found += 1
                 hero_hand = [card_to_str(c) for c in st.players_state[0].hand]
                 board_cards = [card_to_str(c) for c in st.public_cards]
