@@ -125,7 +125,8 @@ def show_stage(name: str, state: pkrs.State):
     idx_straighty = BASE_EQ_SLOT
     idx_flushy = BASE_EQ_SLOT + 1
     idx_highcard = BASE_EQ_SLOT + 2
-    idx_preflop = BASE_EQ_SLOT + 3
+    idx_lowcard  = BASE_EQ_SLOT + 3
+    idx_preflop = BASE_EQ_SLOT + 4
 
     print("\n关键槽位（来自 encode_state 向量）:")
     print(f"  eq_flop     (idx {idx_eq_flop}):    {x[idx_eq_flop]:.6f}")
@@ -134,6 +135,7 @@ def show_stage(name: str, state: pkrs.State):
     print(f"  straighty   (idx {idx_straighty}):  {x[idx_straighty]:.6f}")
     print(f"  flushy      (idx {idx_flushy}):     {x[idx_flushy]:.6f}")
     print(f"  highcard    (idx {idx_highcard}):   {x[idx_highcard]:.6f}")
+    print(f"  lowcard    (idx {idx_lowcard}):   {x[idx_lowcard]:.6f}")
     print(f"  preflop_eq  (idx {idx_preflop}):    {x[idx_preflop]:.6f}")
 
     print(f"\n末尾10个: {list(np.round(x[-10:], 6))}")
