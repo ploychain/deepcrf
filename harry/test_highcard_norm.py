@@ -4,31 +4,45 @@
 import pokers as pkrs
 from src.core.highcard_on_board_norm import highcard_on_board_norm
 
-# suit 编号: Spades=0, Hearts=1, Diamonds=2, Clubs=3
-# rank 编号: R2=1, R3=2, ..., RK=12, RA=13
-def make_card(rank_num, suit_num):
-    """快速创建 pkrs.Card"""
-    return pkrs.Card(rank=rank_num, suit=suit_num)
+def get_enums():
+    """自动从 pokers 模块中提取 rank / suit 枚举对象"""
+    CardRank = getattr(pkrs, "CardRank", None)
+    CardSuit = getattr(pkrs, "CardSuit", None)
+    if CardRank is None or CardSuit is None:
+        # 有些版本是 Rank/Suit
+        CardRank = getattr(pkrs, "Rank")
+        CardSuit = getattr(pkrs, "Suit")
+    ranks = list(CardRank)
+    suits = list(CardSuit)
+    return ranks, suits
+
+def make_card(rank_idx, suit_idx, ranks, suits):
+    """根据枚举下标创建 Card"""
+    return pkrs.Card(rank=ranks[rank_idx], suit=suits[suit_idx])
 
 def card_to_str(card):
-    """将卡牌转成 'A♠' 样式方便打印"""
-    rank_map = {
-        1: '2', 2: '3', 3: '4', 4: '5', 5: '6', 6: '7',
-        7: '8', 8: '9', 9: '10', 10: 'J', 11: 'Q', 12: 'K', 13: 'A'
-    }
-    suit_symbol = {0: '♠', 1: '♥', 2: '♦', 3: '♣'}
-    try:
-        r = rank_map[int(card.rank)]
-        s = suit_symbol[int(card.suit)]
-        return f"{r}{s}"
-    except Exception:
-        return str(card)
+    """人类可读格式"""
+    rank_str = str(card.rank).split('.')[-1].replace('R', '')
+    suit_str = str(card.suit).split('.')[-1]
+    suit_symbol = {
+        'Spades': '♠',
+        'Hearts': '♥',
+        'Diamonds': '♦',
+        'Clubs': '♣'
+    }.get(suit_str, '?')
+    rank_symbol = {
+        'T': '10', 'J': 'J', 'Q': 'Q', 'K': 'K', 'A': 'A'
+    }.get(rank_str, rank_str)
+    return f"{rank_symbol}{suit_symbol}"
 
 def main():
+    ranks, suits = get_enums()
+
+    # 创建三组公共牌（不同的 rank）
     boards = [
-        [make_card(1,0), make_card(4,1), make_card(8,2)],   # 2♠ 5♥ 9♦
-        [make_card(9,0), make_card(11,3), make_card(12,1)], # 10♠ Q♣ K♥
-        [make_card(13,3), make_card(3,2), make_card(7,1)],  # A♣ 4♦ 8♥
+        [make_card(0, 0, ranks, suits), make_card(3, 1, ranks, suits), make_card(7, 2, ranks, suits)],   # 2♠ 5♥ 9♦
+        [make_card(8, 0, ranks, suits), make_card(10, 3, ranks, suits), make_card(11, 1, ranks, suits)], # 10♠ Q♣ K♥
+        [make_card(12, 3, ranks, suits), make_card(2, 2, ranks, suits), make_card(6, 1, ranks, suits)],  # A♣ 4♦ 8♥
     ]
 
     for i, b in enumerate(boards):
