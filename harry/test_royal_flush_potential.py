@@ -1,14 +1,16 @@
 # coding: utf-8
-# harry/test_royal_flush_potential.py
+# harry/test_highcard_norm.py
 #
-# 扫描一批随机牌局，在 Flop / Turn / River 上
-# 打印 hand_royal_flush_potential > 0 的场景。
+# 不再自己造 Card，直接用 pokers.State.from_seed 发出来的公共牌，
+# 在 Flop / Turn / River 上计算 highcard_on_board_norm。
 
+import numpy as np
 import pokers as pkrs
-from src.core.hand_straight_flush_potential import hand_straight_flush_potential
+from src.core.highcard_on_board_norm import highcard_on_board_norm
 
 
 def pick_naive_action(state: pkrs.State) -> pkrs.Action:
+    """极简推进策略：优先 CHECK，其次 CALL；否则用最小 BET/RAISE；最后才 FOLD。"""
     AE = pkrs.ActionEnum
     la = list(state.legal_actions)
 
@@ -31,128 +33,77 @@ def pick_naive_action(state: pkrs.State) -> pkrs.Action:
     return pkrs.Action(AE.Fold)
 
 
+def advance_until_board_len(state: pkrs.State, target_len: int) -> pkrs.State:
+    """执行最朴素动作，直到公共牌张数达到 target_len（3/4/5）或终局。"""
+    guard = 2000
+    while (not state.final_state) and len(state.public_cards) < target_len and guard > 0:
+        act = pick_naive_action(state)
+        nxt = state.apply_action(act)
+        if nxt.status != pkrs.StateStatus.Ok:
+            raise RuntimeError(f"状态无效: {nxt.status}, 动作: {act}")
+        state = nxt
+        guard -= 1
+    return state
+
+
 def card_to_str(card):
+    """把 pokers.Card 转成 'A♠' 这样的字符串，方便人类看"""
     try:
         rank_str = str(card.rank).split('.')[-1].replace('R', '')
         suit_str = str(card.suit).split('.')[-1]
+
         suit_symbol = {
             'Spades':   '♠',
             'Hearts':   '♥',
             'Diamonds': '♦',
             'Clubs':    '♣'
         }.get(suit_str, '?')
+
         rank_symbol = {
             'T': '10', 'J': 'J', 'Q': 'Q', 'K': 'K', 'A': 'A'
         }.get(rank_str, rank_str)
+
         return f"{rank_symbol}{suit_symbol}"
     except Exception:
         return str(card)
 
-from contextlib import contextmanager
-import sys
-import os
-import os
-from contextlib import contextmanager
 
-@contextmanager
-def silence_engine_output():
-    """
-    把底层 C/Cpp 的 stdout/stderr 也临时重定向到 /dev/null，
-    连 "Winner id" / "Ranks" 这种 printf 都一起静音。
-    """
-    # 备份当前 stdout / stderr 的文件描述符
-    old_stdout_fd = os.dup(1)
-    old_stderr_fd = os.dup(2)
+def show_stage(name: str, state: pkrs.State):
+    board = state.public_cards
+    board_str = [card_to_str(c) for c in board]
+    val = highcard_on_board_norm(board)
 
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    try:
-        # 把 fd=1,2 指向 /dev/null
-        os.dup2(devnull, 1)
-        os.dup2(devnull, 2)
-        yield
-    finally:
-        # 恢复原来的 stdout / stderr
-        os.dup2(old_stdout_fd, 1)
-        os.dup2(old_stderr_fd, 2)
-        os.close(devnull)
-        os.close(old_stdout_fd)
-        os.close(old_stderr_fd)
-
-
-
-def play_one_hand(seed: int, n_players=6):
-    boards = []
-
-    # ✅ 把整段跟引擎交互的逻辑放到静音区间里
-    with silence_engine_output():
-        state = pkrs.State.from_seed(
-            n_players=n_players, button=0, sb=1, bb=2, stake=200.0, seed=seed
-        )
-        guard = 2000
-        while not state.final_state and guard > 0:
-            if len(state.public_cards) in (3, 4, 5):
-                if len(state.public_cards) == 3:
-                    street = "Flop"
-                elif len(state.public_cards) == 4:
-                    street = "Turn"
-                else:
-                    street = "River"
-                boards.append((street, state))
-
-            act = pick_naive_action(state)
-            nxt = state.apply_action(act)
-            if nxt.status != pkrs.StateStatus.Ok:
-                break
-            state = nxt
-            guard -= 1
-
-    return boards
-
-
-def calc_royal_on_state(state: pkrs.State, hero_id=0) -> float:
-    hero_cards = state.players_state[hero_id].hand
-    board_cards = state.public_cards
-
-    n_opponents = 0
-    for i, ps in enumerate(state.players_state):
-        if i == hero_id:
-            continue
-        if getattr(ps, "active", False):
-            n_opponents += 1
-
-    return hand_straight_flush_potential(hero_cards, board_cards, n_opponents)
+    print(f"\n=== {name} ===")
+    print(f"Board cards ({len(board_str)}): {board_str}")
+    print(f"highcard_on_board_norm = {val:.4f}")
 
 
 def main():
-    found = 0
-    max_show = 100
+    # 固定 seed，确保可复现（随便挑一个，你可以换着玩）
+    state = pkrs.State.from_seed(
+        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=33
+    )
 
-    for seed in range(1, 100000):
-        boards = play_one_hand(seed)
-        if not boards:
-            continue
+    # Preflop（无公共牌，高牌归一化应该是 0）
+    show_stage("Preflop", state)
 
-        for street, st in boards:
-            if len(st.public_cards) < 3:
-                continue
+    # Flop（3 张公共牌）
+    state = advance_until_board_len(state, 3)
+    if state.final_state:
+        print("\n[WARN] 未到 Flop 就终局了，换个 seed 再试，例如 42 或 12345。")
+        return
+    show_stage("Flop", state)
 
-            p = calc_royal_on_state(st)
-            # 皇家同花顺本来就极罕见，概率会非常小，这里只要 > 0 就打印出来
-            if p > 0.1:
-                found += 1
-                hero_hand = [card_to_str(c) for c in st.players_state[0].hand]
-                board_cards = [card_to_str(c) for c in st.public_cards]
+    # Turn（4 张公共牌）
+    state = advance_until_board_len(state, 4)
+    if state.final_state:
+        print("\n[WARN] 未到 Turn 就终局了，换个 seed 再试。")
+        return
+    show_stage("Turn", state)
 
-                print(f"\n=== Seed {seed} | {street} ===")
-                print("Hero hand:", hero_hand)
-                print(f"Board cards ({len(board_cards)}):", board_cards)
-                print("hand_royal_flush_potential =", p)
-
-                if found >= max_show:
-                    return
-
-    if found == 0:
-        print("扫描到的牌局里，始终没有 royal_flush_prob > 0 的情况，这就不正常了。")
+    # River（5 张公共牌）
+    state = advance_until_board_len(state, 5)
+    show_stage("River", state)
 
 
 if __name__ == "__main__":
