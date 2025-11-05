@@ -6,6 +6,7 @@ import pandas as pd
 import pokers as pkrs
 from src.core.hand_straighty_potential import hand_straighty_potential
 from src.core.hand_flushy_potential import hand_flushy_potential
+from src.core.highcard_on_board_norm import highcard_on_board_norm
 
 
 
@@ -471,6 +472,16 @@ def encode_state(state, player_id=0):
             print(f"[WARN] hand_flush_potential compute failed: {e}")
             flushy_prob = 0.0
     encoded.append(np.array([flushy_prob], dtype=np.float32))
+
+    # 11) highcard_on_board_norm（公共牌最高牌归一化：A = 1.0）
+    highcard_norm = 0
+    try:
+        highcard_norm = highcard_on_board_norm(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] highcard_on_board_norm compute failed: {e}")
+        highcard_norm = 0.0
+    encoded.append(np.array([highcard_norm], dtype=np.float32))
 
 
     # 11) preflop_equity（最后一维；仅 Preflop 写入）
