@@ -48,28 +48,47 @@ def card_to_str(card):
     except Exception:
         return str(card)
 
+from contextlib import contextmanager
+import sys
+import os
+@contextmanager
+def suppress_stdout():
+    """临时屏蔽 stdout（pokers 里那些 Winner id / Ranks 的调试输出）"""
+    old_stdout = sys.stdout
+    try:
+        sys.stdout = open(os.devnull, 'w')
+        yield
+    finally:
+        sys.stdout.close()
+        sys.stdout = old_stdout
+
 
 def play_one_hand(seed: int, n_players=6):
-    state = pkrs.State.from_seed(
-        n_players=n_players, button=0, sb=1, bb=2, stake=200.0, seed=seed
-    )
     boards = []
-    guard = 2000
-    while not state.final_state and guard > 0:
-        if len(state.public_cards) in (3, 4, 5):
-            if len(state.public_cards) == 3:
-                street = "Flop"
-            elif len(state.public_cards) == 4:
-                street = "Turn"
-            else:
-                street = "River"
-            boards.append((street, state))
-        act = pick_naive_action(state)
-        nxt = state.apply_action(act)
-        if nxt.status != pkrs.StateStatus.Ok:
-            break
-        state = nxt
-        guard -= 1
+
+    # ✅ 把整段跟引擎交互的逻辑放到静音区间里
+    with suppress_stdout():
+        state = pkrs.State.from_seed(
+            n_players=n_players, button=0, sb=1, bb=2, stake=200.0, seed=seed
+        )
+        guard = 2000
+        while not state.final_state and guard > 0:
+            if len(state.public_cards) in (3, 4, 5):
+                if len(state.public_cards) == 3:
+                    street = "Flop"
+                elif len(state.public_cards) == 4:
+                    street = "Turn"
+                else:
+                    street = "River"
+                boards.append((street, state))
+
+            act = pick_naive_action(state)
+            nxt = state.apply_action(act)
+            if nxt.status != pkrs.StateStatus.Ok:
+                break
+            state = nxt
+            guard -= 1
+
     return boards
 
 
