@@ -51,23 +51,40 @@ def card_to_str(card):
 from contextlib import contextmanager
 import sys
 import os
+import os
+from contextlib import contextmanager
+
 @contextmanager
-def suppress_stdout():
-    """临时屏蔽 stdout（pokers 里那些 Winner id / Ranks 的调试输出）"""
-    old_stdout = sys.stdout
+def silence_engine_output():
+    """
+    把底层 C/Cpp 的 stdout/stderr 也临时重定向到 /dev/null，
+    连 "Winner id" / "Ranks" 这种 printf 都一起静音。
+    """
+    # 备份当前 stdout / stderr 的文件描述符
+    old_stdout_fd = os.dup(1)
+    old_stderr_fd = os.dup(2)
+
+    devnull = os.open(os.devnull, os.O_WRONLY)
     try:
-        sys.stdout = open(os.devnull, 'w')
+        # 把 fd=1,2 指向 /dev/null
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
         yield
     finally:
-        sys.stdout.close()
-        sys.stdout = old_stdout
+        # 恢复原来的 stdout / stderr
+        os.dup2(old_stdout_fd, 1)
+        os.dup2(old_stderr_fd, 2)
+        os.close(devnull)
+        os.close(old_stdout_fd)
+        os.close(old_stderr_fd)
+
 
 
 def play_one_hand(seed: int, n_players=6):
     boards = []
 
     # ✅ 把整段跟引擎交互的逻辑放到静音区间里
-    with suppress_stdout():
+    with silence_engine_output():
         state = pkrs.State.from_seed(
             n_players=n_players, button=0, sb=1, bb=2, stake=200.0, seed=seed
         )
