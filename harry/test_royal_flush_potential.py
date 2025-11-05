@@ -5,7 +5,7 @@
 # 打印 hand_royal_flush_potential > 0 的场景。
 
 import pokers as pkrs
-from src.core.hand_straight_flush_potential import hand_royal_flush_potential
+from src.core.hand_straight_flush_potential import hand_straight_flush_potential
 
 
 def pick_naive_action(state: pkrs.State) -> pkrs.Action:
@@ -120,7 +120,7 @@ def calc_royal_on_state(state: pkrs.State, hero_id=0) -> float:
         if getattr(ps, "active", False):
             n_opponents += 1
 
-    return hand_royal_flush_potential(hero_cards, board_cards, n_opponents)
+    return hand_straight_flush_potential(hero_cards, board_cards, n_opponents)
 
 
 def main():
