@@ -32,7 +32,6 @@ def lowcard_on_board_norm(board_cards):
             r_str = str(c.rank).split('.')[-1]
             if r_str == 'RA':
                 ranks.append(14)  # A作为14
-                ranks.append(1)   # 也考虑A作为1，取更小
             elif r_str == 'RK':
                 ranks.append(13)
             elif r_str == 'RQ':
