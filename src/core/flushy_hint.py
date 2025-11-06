@@ -53,3 +53,24 @@ def flushy_hint(board_cards) -> float:
         return 0.7
     else:  # max_same_suit >= 4（包括已经成同花 5 张）
         return 1.0
+
+
+def flush_on_board(board_cards) -> int:
+    """
+    是否公共牌已有同花（0/1）。
+    """
+    if not board_cards or len(board_cards) < 5:
+        return 0
+
+    # 统计各花色出现次数
+    suit_counts = Counter()
+    for c in board_cards:
+        s = str(c.suit).split('.')[-1]
+        suit_counts[s] += 1
+
+    # 若任一花色数量 ≥ 5，则说明公共牌已有同花
+    for cnt in suit_counts.values():
+        if cnt >= 5:
+            return 1
+
+    return 0
