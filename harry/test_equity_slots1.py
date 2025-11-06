@@ -153,7 +153,7 @@ def main():
 
     # 固定 seed，确保可复现（你可以改成 4、42 等自己玩）
     state = pkrs.State.from_seed(
-        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=33
+        n_players=6, button=0, sb=1, bb=2, stake=200.0, seed=44
     )
 
     # === Preflop ===
