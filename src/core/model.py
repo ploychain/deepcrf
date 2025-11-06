@@ -649,12 +649,11 @@ def encode_state(state, player_id=0):
         flush_suits_count = 0
     encoded.append(np.array([flush_suits_count], dtype=np.float32))
 
-    # ==== implied_pot_odds_hint：当前听牌投资回报比估计 ====
+    # ==== implied_pot_odds_hint：当前投资回报比估计（基于 equity vs pot odds） ====
     implied_pot_odds_hint = 0.0
     try:
         pot_size = state.pot
         hero_state = state.players_state[player_id]
-        hero_stack = getattr(hero_state, "stake", 0.0)
 
         # 当前 hero 需要跟注多少（max_bet - hero 已下的 bet）
         to_call = 0.0
@@ -664,19 +663,10 @@ def encode_state(state, player_id=0):
         except Exception:
             to_call = 0.0
 
-        # 有效筹码（和 SPR 一样，用最短那一方）
-        opponent_stacks = [
-            getattr(ps, "stake", 0.0)
-            for i, ps in enumerate(state.players_state)
-            if i != player_id and getattr(ps, "active", False)
-        ]
-        villain_stack = min(opponent_stacks) if opponent_stacks else 0.0
-        effective_stack = min(hero_stack, villain_stack)
-
-        #    - Preflop：用 preflop_equity（get_preflop_equity）
-        #    - Flop / Turn / River：用 raw_flop / raw_turn / raw_river
+        # 当前阶段的 equity：
+        #  - Preflop：用 preflop_equity
+        #  - Flop / Turn / River：用 raw_flop / raw_turn / raw_river
         if stage_now == STAGE_PREFLOP:
-            # 用你上面已经定义好的查表函数
             try:
                 current_equity = float(get_preflop_equity(hero_state.hand))
             except Exception:
@@ -688,26 +678,28 @@ def encode_state(state, player_id=0):
         elif stage_now == STAGE_RIVER:
             current_equity = float(raw_river)
         else:
-            current_equity = 0.0  # 其他异常阶段就当 0
+            current_equity = 0.0
 
-        alpha = 0.3  # 命中之后，期望还能从有效筹码中再赢到 alpha 部分
-        implied_pot = pot_size + to_call + alpha * effective_stack
+        pot_plus = pot_size + to_call
 
-        if implied_pot > 0 and to_call > 0 and current_equity > 0:
-            # 所需 equity（含 implied odds）
-            implied_pot_odds = to_call / implied_pot  # C / (P + C + implied)
+        if pot_plus > 0 and to_call > 0 and current_equity > 0:
+            # 经典底池赔率：需要的胜率
+            required_equity = to_call / pot_plus  # C / (P + C)
 
             # 性价比比值：equity / required_equity
-            ratio = current_equity / implied_pot_odds if implied_pot_odds > 0 else 0.0
+            ratio = current_equity / required_equity if required_equity > 0 else 0.0
 
-            # 压缩到 0~1：ratio=1 → 0.5，ratio>=2 → ~1
+            # 映射到 0~1：
+            #   ratio = 1   → 0.5   （刚好公平）
+            #   ratio >= 2 → 1.0   （非常划算）
+            #   ratio <= 0 → 0.0   （几乎必亏）
             implied_pot_odds_hint = max(0.0, min(1.0, ratio / 2.0))
         else:
             implied_pot_odds_hint = 0.0
 
         if VERBOSE:
             print(f"[IMPLIED_POT_ODDS] stage={stage_now}, eq={current_equity:.3f}, "
-                  f"to_call={to_call:.2f}, pot={pot_size:.2f}, eff_stack={effective_stack:.2f}, "
+                  f"to_call={to_call:.2f}, pot={pot_size:.2f}, "
                   f"hint={implied_pot_odds_hint:.3f}")
     except Exception as e:
         if VERBOSE:
