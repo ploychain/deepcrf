@@ -649,23 +649,32 @@ def encode_state(state, player_id=0):
         flush_suits_count = 0
     encoded.append(np.array([flush_suits_count], dtype=np.float32))
 
-    # ==== implied_pot_odds_hint：当前投资回报比估计（基于 equity vs pot odds） ====
+    # ==== implied_pot_odds_hint：当前投资回报比估计（含跟注 + 主动下注，动态 alpha & bet_frac）====
     implied_pot_odds_hint = 0.0
     try:
-        pot_size = state.pot
+        pot_size = float(state.pot)
         hero_state = state.players_state[player_id]
+        hero_stack = float(getattr(hero_state, "stake", 0.0))
 
-        # 当前 hero 需要跟注多少（max_bet - hero 已下的 bet）
-        to_call = 0.0
+        # 1) 当前最大下注 & hero 已经下了多少
         try:
-            current_bet = max(ps.bet_chips for ps in state.players_state)
-            to_call = max(0.0, current_bet - hero_state.bet_chips)
-        except Exception:
-            to_call = 0.0
+            current_bet = max(float(ps.bet_chips) for ps in state.players_state)
+        except ValueError:
+            current_bet = 0.0
 
-        # 当前阶段的 equity：
-        #  - Preflop：用 preflop_equity
-        #  - Flop / Turn / River：用 raw_flop / raw_turn / raw_river
+        hero_bet = float(getattr(hero_state, "bet_chips", 0.0))
+        to_call = max(0.0, current_bet - hero_bet)
+
+        # 2) 有效筹码（和 SPR 一样，用最短那一方）
+        opponent_stacks = [
+            float(getattr(ps, "stake", 0.0))
+            for i, ps in enumerate(state.players_state)
+            if i != player_id and getattr(ps, "active", False)
+        ]
+        villain_stack = min(opponent_stacks) if opponent_stacks else 0.0
+        effective_stack = max(0.0, min(hero_stack, villain_stack))
+
+        # 3) 当前阶段的 equity
         if stage_now == STAGE_PREFLOP:
             try:
                 current_equity = float(get_preflop_equity(hero_state.hand))
@@ -680,27 +689,72 @@ def encode_state(state, player_id=0):
         else:
             current_equity = 0.0
 
-        pot_plus = pot_size + to_call
+        # 4) 定义本轮“投资额 invest”：
+        #    - 如果有人下注：投资额 = to_call（跟注这口）
+        #    - 如果没人下注：假设 hero 可以打一笔“标准下注”（动态 bet_frac）
+        invest = 0.0
+        if to_call > 0.0:
+            # 跟注投资
+            invest = to_call
+        else:
+            # 主动下注投资：动态下注比例（相对底池）
+            try:
+                # s_hint / f_hint 前面已经算过，这里直接用
+                wet_factor = 0.5 + 0.5 * max(float(s_hint), float(f_hint))
+            except Exception:
+                wet_factor = 0.5
 
-        if pot_plus > 0 and to_call > 0 and current_equity > 0:
-            # 经典底池赔率：需要的胜率
-            required_equity = to_call / pot_plus  # C / (P + C)
+            try:
+                base_bet = 0.4  # 基础下注比例
+                # SPR 越高，下注比例略小一点（长线 maneuver 多）
+                try:
+                    local_spr_for_bet = float(spr_v)
+                except Exception:
+                    local_spr_for_bet = 0.0
+                spr_factor = max(0.2, min(0.6, 0.5 - 0.03 * local_spr_for_bet))
+                equity_factor = 0.3 + 0.7 * max(0.0, min(1.0, current_equity))
+                bet_frac = min(1.0, base_bet * equity_factor * wet_factor + spr_factor)
+            except Exception:
+                bet_frac = 0.5  # fallback：如果出错就用半池
 
-            # 性价比比值：equity / required_equity
-            ratio = current_equity / required_equity if required_equity > 0 else 0.0
+            standard_bet = bet_frac * pot_size
+            # 不能超过有效筹码
+            invest = max(0.0, min(standard_bet, effective_stack))
 
-            # 映射到 0~1：
-            #   ratio = 1   → 0.5   （刚好公平）
-            #   ratio >= 2 → 1.0   （非常划算）
-            #   ratio <= 0 → 0.0   （几乎必亏）
-            implied_pot_odds_hint = max(0.0, min(1.0, ratio / 2.0))
+        # 5) 动态 alpha：跟 SPR 挂钩，SPR 越高 implied 越大
+        try:
+            local_spr = float(spr_v)
+        except Exception:
+            local_spr = 0.0
+
+        # 例如：spr=2→alpha=0.1; spr=4→0.2; spr=6→0.3; spr=10→0.5; spr>=12→封顶0.6
+        alpha = min(0.6, 0.05 * max(0.0, local_spr))
+
+        # 6) 计算“所需胜率”和“性价比” → 归一到 0~1
+        if invest > 0.0 and current_equity > 0.0 and pot_size >= 0.0:
+            implied_pot = pot_size + invest + alpha * effective_stack
+            if implied_pot > 0.0:
+                required_equity = invest / implied_pot  # 为这笔投资 break-even 需要的胜率
+                if required_equity > 0.0:
+                    ratio = current_equity / required_equity
+                    # 映射到 0~1：
+                    #   ratio = 1   → 0.5   （刚好公平）
+                    #   ratio >= 2 → 1.0   （非常划算）
+                    #   ratio <= 0 → 0.0   （几乎必亏）
+                    implied_pot_odds_hint = max(0.0, min(1.0, ratio / 2.0))
+                else:
+                    implied_pot_odds_hint = 1.0  # 不需要胜率就不亏的极端情况
+            else:
+                implied_pot_odds_hint = 0.0
         else:
             implied_pot_odds_hint = 0.0
 
         if VERBOSE:
-            print(f"[IMPLIED_POT_ODDS] stage={stage_now}, eq={current_equity:.3f}, "
-                  f"to_call={to_call:.2f}, pot={pot_size:.2f}, "
-                  f"hint={implied_pot_odds_hint:.3f}")
+            print(
+                f"[IMPLIED_POT_ODDS] stage={stage_now}, eq={current_equity:.3f}, "
+                f"pot={pot_size:.2f}, invest={invest:.2f}, spr={local_spr:.2f}, "
+                f"alpha={alpha:.3f}, hint={implied_pot_odds_hint:.3f}"
+            )
     except Exception as e:
         if VERBOSE:
             print(f"[WARN] implied_pot_odds_hint compute failed: {e}")
