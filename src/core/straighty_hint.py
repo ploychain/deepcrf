@@ -6,19 +6,37 @@ straighty_hint
 
 设计目标：
 1. 必须在“5 连窗口”里才算有顺子味：max(rank) - min(rank) <= 4
-2. 不仅看覆盖了多少种点数，还要看点数之间的“紧密程度”：
+2. 看三层信息：
+   (1) 点数之间的“紧密程度”（tightness）
+   (2) 当前覆盖了多少种点数（coverage）
+   (3) 这些牌可以嵌入多少种 5 连序列（window_factor，区分两头顺 / 单头顺）
+
    - 相邻差 1（比如 5-6）：记 1.0 分
    - 相邻差 2（比如 5-7）：记 0.5 分
    - 差 >=3：记 0 分（断层太大）
-3. 对去重后的有序点数 ranks = [r1 < r2 < ... < rk]:
-   - 紧密度得分 score_raw = sum(gap_score(ri+1 - ri))
-   - 理论紧密度满分 max_score = (k - 1) * 1.0 （所有 gap 都是 1 的时候）
-   - tightness = score_raw / max_score  （若 max_score == 0 则为 0）
-4. 5 连窗口最多覆盖 5 种不同点数，用 coverage = k / 5.0 表示覆盖率（上限封顶为 1.0）
-   - 最终 straighty_hint = tightness * coverage
-     - 这样完整 5 连（覆盖 5 张点数且完全紧凑）才会是 1.0
-     - 像 [5,6,7] 这种只有 3 张连牌，顺子味会低于完整 5 连
-5. A 特判：A 既可以当 14，也可以当 1（轮顺 A2345），取两种视角里更大的 straighty_hint。
+
+   对去重后的有序点数 ranks = [r1 < r2 < ... < rk]:
+
+   紧密度：
+      score_raw = sum(gap_score(ri+1 - ri))
+      max_score = (k - 1) * 1.0 （所有 gap 都是 1 的时候）
+      tightness = score_raw / max_score   （0~1）
+
+   覆盖率：
+      coverage = k / 5.0 （最多 5 种点数，上限封为 1.0）
+
+   多窗口因子（两头顺/单头顺）：
+      - 在允许的点数范围 [variant_min, variant_max] 内，
+        统计所有长度为 5 的窗口 [x, x+1, x+2, x+3, x+4]，
+        其中必须满足 ranks 的所有点数都在这个窗口里。
+      - 实际窗口数 = num_windows
+      - 理论最大窗口数 = 5 - (rmax - rmin)
+      - window_factor = num_windows / (5 - (rmax - rmin))  （0~1）
+
+   最终：
+      straighty_hint_single = tightness * coverage * window_factor
+
+3. A 特判：A 既可以当 14，也可以当 1（轮顺 A2345），取两种视角里更大的 straighty_hint。
 """
 
 from typing import List
@@ -51,18 +69,30 @@ def _extract_ranks(board_cards) -> (List[int], bool):
     return vals, has_ace
 
 
-def _straighty_hint_single_variant(ranks: List[int]) -> float:
+def _straighty_hint_single_variant(ranks: List[int],
+                                   variant_min: int,
+                                   variant_max: int) -> float:
     """
     在“某一种视角”（比如正常视角或 A→1 视角）下计算 straighty_hint。
     ranks: 已去重 & 排序 的点数列表，如 [5,6,8]。
+    variant_min/variant_max: 该视角下允许的点数范围，例如：
+        - 正常视角：2..14
+        - 轮顺视角：1..13  （A 当 1，只负责 A2345..9TJQK）
     """
+    ranks = sorted(set(ranks))
+
     # 少于 2 种点数，不可能有顺子结构
     if len(ranks) < 2:
         return 0.0
 
     rmin, rmax = ranks[0], ranks[-1]
+
     # 必须在某个 5 连窗口内，否则顺子味直接视为 0
     if rmax - rmin > 4:
+        return 0.0
+
+    # 安全防御：如果整个可用点数区间本身都不够 5 张，也无意义
+    if variant_max - variant_min + 1 < 5:
         return 0.0
 
     # 1）计算相邻 gap 的“紧密度得分”
@@ -88,23 +118,50 @@ def _straighty_hint_single_variant(ranks: List[int]) -> float:
     # 2）覆盖率：5 连窗口最多 5 种点数
     coverage = min(1.0, len(ranks) / 5.0)
 
-    # 3）综合评分
-    return float(tightness * coverage)
+    # 3）多窗口因子（两头顺 > 单头顺）
+    # 统计所有合法起点 x，使得：
+    #   - 窗口 [x, x+4] 在 [variant_min, variant_max] 内
+    #   - 且该窗口完全覆盖当前 [rmin, rmax]
+    #
+    # 条件转化：
+    #   x <= rmin  且 x+4 >= rmax  ->  rmax-4 <= x <= rmin
+    #   同时 variant_min <= x <= variant_max-4
+    start_low  = max(variant_min, rmax - 4)
+    start_high = min(variant_max - 4, rmin)
+    num_windows = max(0, start_high - start_low + 1)
+
+    # 理论最大的窗口数（如果不受牌面下/上边界限制）
+    span = rmax - rmin  # 已经 ≤ 4
+    denom = 5 - span    # span=0..4 -> denom=5..1
+    if denom <= 0:
+        window_factor = 0.0
+    else:
+        window_factor = num_windows / float(denom)
+
+    window_factor = max(0.0, min(1.0, window_factor))
+
+    # 综合评分
+    return float(tightness * coverage * window_factor)
 
 
 def straighty_hint(board_cards) -> float:
     """
     公共牌顺子潜力提示（0~1）。
 
-    关键性质（大致趋势示例）：
-      - [5,6,7,8,9]        → 1.0   （完整 5 连）
-      - [5,6,7]            → 0.6   （3 张紧连，有顺子味但不如完整 5 连）
-      - [5,6,8]            → 0.45  （比 5,7,9 更紧）
-      - [5,7,9]            → 0.3
-      - [2,2,2,6]          → 0.0   （虽然 max-min=4，但实际上没顺子结构）
-      - [9,T,J,Q,K]        → 1.0   （9~K 完整 5 连）
-      - [A,2,3,4,5]        → 1.0   （轮顺视角 A2345）
-      - [2,8,K]            → 0.0   （完全没顺子味）
+    引入“两头顺 / 单头顺”的区分，并考虑 A 的两种视角。
+
+    大致趋势（示例）：
+      - [9,T,J,Q,K]        → ~1.0   （完整 5 连）
+      - [T,J,Q]            → ~0.6   （三张紧连，居中，两头开放，多窗口）
+      - [J,Q,K]            → ~0.4   （三张紧连，靠近上边界，窗口略少）
+      - [Q,K,A]            → ~0.2   （三张紧连，最上方，几乎单头顺）
+      - [5,6,7]            → ~0.6   （三张紧连，中间偏下）
+      - [5,6,8]            → ~0.45
+      - [5,7,9]            → ~0.3
+      - [2,2,2,6]          → 0.0    （虽然 max-min=4，但实际上没顺子结构）
+      - [9,T,J,Q,K]        → 1.0    （9~K 完整 5 连）
+      - [A,2,3,4,5]        → 1.0    （轮顺视角 A2345）
+      - [2,8,K]            → 0.0    （完全没顺子味）
     """
     if not board_cards:
         return 0.0
@@ -117,12 +174,12 @@ def straighty_hint(board_cards) -> float:
 
     # 视角 1：正常 2..14
     ranks_norm = sorted(set(vals))
-    best_hint = max(best_hint, _straighty_hint_single_variant(ranks_norm))
+    best_hint = max(best_hint, _straighty_hint_single_variant(ranks_norm, 2, 14))
 
-    # 视角 2：A 当 1（轮顺 A2345）
+    # 视角 2：A 当 1（轮顺 A2345..9TJQK）
     if has_ace:
         vals_wheel = [1 if v == 14 else v for v in vals]
         ranks_wheel = sorted(set(vals_wheel))
-        best_hint = max(best_hint, _straighty_hint_single_variant(ranks_wheel))
+        best_hint = max(best_hint, _straighty_hint_single_variant(ranks_wheel, 1, 13))
 
     return float(best_hint)
