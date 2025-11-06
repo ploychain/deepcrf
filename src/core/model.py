@@ -299,6 +299,41 @@ class PokerNetwork(nn.Module):
         bet_size = 0.1 + 2.9 * self.sizing_head(features)
         return action_logits, bet_size
 
+def _river_strength_score(hole2_state, board5_state):
+    """
+    河牌阶段牌力打分（0~1）：
+    - 利用 treys Evaluator 的分数：score 越小牌越强
+    - 再线性映射到 [0,1]：强牌接近 1，弱牌接近 0
+    - 不做 Monte Carlo，不循环，速度极快
+    """
+    if not _TREYS_OK:
+        # 没有 treys 就暂时给 0，将来可以换成别的简单特征
+        return 0.0
+
+    # 把 pokers 的牌对象转换成 treys 的 Card
+    def to_t(c):
+        rank_code = RANK_CHAR_MAP[str(c.rank).split('.')[-1]]   # '2'..'A'
+        suit_code = SUIT_CHAR_MAP[str(c.suit).split('.')[-1]]   # 's','h','d','c'
+        return TCard.new(rank_code + suit_code)
+
+    # 英雄手牌（2 张）
+    hero = [to_t(hole2_state[0]), to_t(hole2_state[1])]
+    # 河牌公共牌（5 张）
+    board5 = [to_t(x) for x in board5_state]
+
+    # treys 分数：1 最强，7462 最弱
+    score = _teval.evaluate(board5, hero)
+
+    # 线性映射到 0~1，越强越接近 1
+    MAX_SCORE = 7462.0
+    norm_strength = 1.0 - (score - 1.0) / (MAX_SCORE - 1.0)
+
+    # 防守性裁剪，避免数值稍微出界
+    norm_strength = max(0.0, min(1.0, norm_strength))
+
+    return float(norm_strength)
+
+
 # =============== 主编码：带街道门控的权益槽 ===============
 def encode_state(state, player_id=0):
     """
@@ -423,7 +458,7 @@ def encode_state(state, player_id=0):
 
         # river 原始值（仅 MC）
         if len(board) == 5 and _TREYS_OK:
-            raw_river = _mc_equity_river(hero, board[:5], n_players=num_players, n_sim=500)
+            raw_river = _river_strength_score(hero, board[:5])
 
     except Exception as e:
         if VERBOSE:

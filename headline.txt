@@ -1,4 +1,5 @@
- CUDA_VISIBLE_DEVICES=0 python src/training/train.py   --iterations 1500   --traversals 20000   --strict   --save-dir ./fix_models
+ CUDA_VISIBLE_DEVICES=0 python src/training/train.py  \
+  --iterations 1500   --traversals 20000   --strict   --save-dir ./fix_models
 
 
 
