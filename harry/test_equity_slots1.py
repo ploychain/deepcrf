@@ -130,7 +130,8 @@ def show_stage(name: str, state: pkrs.State):
     idx_avg_rank = BASE_EQ_SLOT + 5
     idx_paired = BASE_EQ_SLOT + 6
     idx_shint = BASE_EQ_SLOT + 7
-    idx_preflop = BASE_EQ_SLOT + 8
+    idx_fhint = BASE_EQ_SLOT + 8
+    idx_preflop = BASE_EQ_SLOT + 9
 
     print("\n关键槽位（来自 encode_state 向量）:")
     print(f"  eq_flop     (idx {idx_eq_flop}):    {x[idx_eq_flop]:.6f}")
@@ -144,6 +145,7 @@ def show_stage(name: str, state: pkrs.State):
     print(f"  avg_rank    (idx {idx_avg_rank}):   {x[idx_avg_rank]:.6f}")
     print(f"  paired_level    (idx {idx_paired}):   {x[idx_paired]:.6f}")
     print(f"  straight_hint    (idx {idx_shint}):   {x[idx_shint]:.6f}")
+    print(f"  flush_hint    (idx {idx_fhint}):   {x[idx_fhint]:.6f}")
     print(f"  preflop_eq  (idx {idx_preflop}):    {x[idx_preflop]:.6f}")
 
     print(f"\n末尾10个: {list(np.round(x[-10:], 6))}")

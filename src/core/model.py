@@ -12,6 +12,7 @@ from src.core.board_gap_norm import board_gap_norm
 from src.core.avg_rank_on_board_norm import avg_rank_on_board_norm
 from src.core.paired_level import paired_level
 from src.core.straighty_hint import straighty_hint
+from src.core.flushy_hint import flushy_hint
 
 
 # === 可选：treys 用于 MC 兜底（不存在也不影响） ===
@@ -536,6 +537,15 @@ def encode_state(state, player_id=0):
         s_hint = 0.0
     encoded.append(np.array([s_hint], dtype=np.float32))
 
+    # 11) board_gap（公共牌最高牌归一化：A = 1.0）
+    f_hint = 0.0
+    try:
+        f_hint = flushy_hint(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] flushy_hint compute failed: {e}")
+        f_hint = 0.0
+    encoded.append(np.array([f_hint], dtype=np.float32))
 
 
 
