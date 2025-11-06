@@ -699,14 +699,14 @@ def encode_state(state, player_id=0):
         else:
             # 主动下注投资：动态下注比例（相对底池）
             try:
-                # s_hint / f_hint 前面已经算过，这里直接用
+                # s_hint / f_hint 前面已经算过，这里直接用（顺子/同花湿度）
                 wet_factor = 0.5 + 0.5 * max(float(s_hint), float(f_hint))
             except Exception:
                 wet_factor = 0.5
 
             try:
                 base_bet = 0.4  # 基础下注比例
-                # SPR 越高，下注比例略小一点（长线 maneuver 多）
+                # SPR 越高，下注比例略小一点（maneuver 空间更大）
                 try:
                     local_spr_for_bet = float(spr_v)
                 except Exception:
@@ -727,14 +727,18 @@ def encode_state(state, player_id=0):
         except Exception:
             local_spr = 0.0
 
-        # 例如：spr=2→alpha=0.1; spr=4→0.2; spr=6→0.3; spr=10→0.5; spr>=12→封顶0.6
-        alpha = min(0.6, 0.05 * max(0.0, local_spr))
+        if stage_now == STAGE_PREFLOP:
+            # ✅ 修正点：preflop 不加 implied，加重 pot odds 权重
+            alpha = 0.0
+        else:
+            # 例如：spr=2→alpha=0.1; spr=4→0.2; spr=6→0.3; spr=10→0.5; spr>=12→封顶0.6
+            alpha = min(0.6, 0.05 * max(0.0, local_spr))
 
         # 6) 计算“所需胜率”和“性价比” → 归一到 0~1
         if invest > 0.0 and current_equity > 0.0 and pot_size >= 0.0:
             implied_pot = pot_size + invest + alpha * effective_stack
             if implied_pot > 0.0:
-                required_equity = invest / implied_pot  # 为这笔投资 break-even 需要的胜率
+                required_equity = invest / implied_pot  # break-even 所需胜率
                 if required_equity > 0.0:
                     ratio = current_equity / required_equity
                     # 映射到 0~1：
@@ -743,7 +747,7 @@ def encode_state(state, player_id=0):
                     #   ratio <= 0 → 0.0   （几乎必亏）
                     implied_pot_odds_hint = max(0.0, min(1.0, ratio / 2.0))
                 else:
-                    implied_pot_odds_hint = 1.0  # 不需要胜率就不亏的极端情况
+                    implied_pot_odds_hint = 1.0  # 极端情况：不需要胜率就不亏
             else:
                 implied_pot_odds_hint = 0.0
         else:
