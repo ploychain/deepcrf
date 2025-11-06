@@ -2,25 +2,28 @@
 import pokers as pkrs
 from src.core.board_gap_norm import board_gap_norm
 
-def card(rank, suit):
-    return pkrs.Card(rank=rank, suit=suit)
-
-def make_card(rank_str, suit_str):
-    ranks = {'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'T':10,'J':11,'Q':12,'K':13,'A':14}
-    suits = {'s': pkrs.CardSuit.Spades, 'h': pkrs.CardSuit.Hearts, 'd': pkrs.CardSuit.Diamonds, 'c': pkrs.CardSuit.Clubs}
-    return pkrs.Card(rank=ranks[rank_str], suit=suits[suit_str])
+def make_card(rank_num, suit_num):
+    """
+    rank_num: 2~14  (2=2, 14=A)
+    suit_num: 0~3   (0=♠, 1=♥, 2=♦, 3=♣)
+    """
+    return pkrs.Card(rank=rank_num, suit=suit_num)
 
 def main():
     boards = [
-        [make_card('5','s'), make_card('6','h'), make_card('7','d')],     # 连性强
-        [make_card('2','s'), make_card('9','h'), make_card('K','d')],     # 很散
-        [make_card('T','s'), make_card('J','h'), make_card('Q','d')],     # 顺连
-        [make_card('3','s'), make_card('8','h'), make_card('Q','d')]      # 中等
+        # 连性强
+        [make_card(5, 0), make_card(6, 1), make_card(7, 2)],
+        # 很散
+        [make_card(2, 0), make_card(9, 1), make_card(13, 2)],
+        # 顺连 (T,J,Q)
+        [make_card(10, 0), make_card(11, 1), make_card(12, 2)],
+        # 中等
+        [make_card(3, 0), make_card(8, 1), make_card(12, 2)]
     ]
 
     for b in boards:
-        print([f"{str(c.rank).split('.')[-1]}-{str(c.suit).split('.')[-1]}" for c in b],
-              "→ board_gap_norm =", round(board_gap_norm(b), 4))
+        desc = " ".join([f"{c.rank}-{c.suit}" for c in b])
+        print(f"Board: {desc} -> board_gap_norm = {board_gap_norm(b):.4f}")
 
 if __name__ == "__main__":
     main()
