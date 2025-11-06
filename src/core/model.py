@@ -673,16 +673,22 @@ def encode_state(state, player_id=0):
         villain_stack = min(opponent_stacks) if opponent_stacks else 0.0
         effective_stack = min(hero_stack, villain_stack)
 
-        # ✅ 当前阶段的 equity：而不是 max(...)
-        #    用你前面算好的 raw_flop / raw_turn / raw_river + stage_now
-        if stage_now == STAGE_FLOP:
+        #    - Preflop：用 preflop_equity（get_preflop_equity）
+        #    - Flop / Turn / River：用 raw_flop / raw_turn / raw_river
+        if stage_now == STAGE_PREFLOP:
+            # 用你上面已经定义好的查表函数
+            try:
+                current_equity = float(get_preflop_equity(hero_state.hand))
+            except Exception:
+                current_equity = 0.0
+        elif stage_now == STAGE_FLOP:
             current_equity = float(raw_flop)
         elif stage_now == STAGE_TURN:
             current_equity = float(raw_turn)
         elif stage_now == STAGE_RIVER:
             current_equity = float(raw_river)
         else:
-            current_equity = 0.0  # Preflop 或未知阶段就当 0
+            current_equity = 0.0  # 其他异常阶段就当 0
 
         alpha = 0.3  # 命中之后，期望还能从有效筹码中再赢到 alpha 部分
         implied_pot = pot_size + to_call + alpha * effective_stack
@@ -709,9 +715,6 @@ def encode_state(state, player_id=0):
         implied_pot_odds_hint = 0.0
 
     encoded.append(np.array([implied_pot_odds_hint], dtype=np.float32))
-
-
-
 
     # 11) preflop_equity（最后一维；仅 Preflop 写入）
     preflop_equity = 0.0
