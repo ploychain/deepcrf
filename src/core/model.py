@@ -10,6 +10,7 @@ from src.core.highcard_on_board_norm import highcard_on_board_norm
 from src.core.lowcard_on_board_norm import lowcard_on_board_norm
 from src.core.board_gap_norm import board_gap_norm
 from src.core.avg_rank_on_board_norm import avg_rank_on_board_norm
+from src.core.paired_level import paired_level
 
 
 # === 可选：treys 用于 MC 兜底（不存在也不影响） ===
@@ -513,6 +514,16 @@ def encode_state(state, player_id=0):
             print(f"[WARN] avg_rank compute failed: {e}")
         avg_rank = 0.0
     encoded.append(np.array([avg_rank], dtype=np.float32))
+
+    # 11) board_gap（公共牌最高牌归一化：A = 1.0）
+    paired_level_c = 0.0
+    try:
+        paired_level_c = paired_level(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] paired_level compute failed: {e}")
+        paired_level_c = 0.0
+    encoded.append(np.array([paired_level_c], dtype=np.float32))
 
 
 
