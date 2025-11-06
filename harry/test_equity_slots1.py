@@ -127,7 +127,8 @@ def show_stage(name: str, state: pkrs.State):
     idx_highcard = BASE_EQ_SLOT + 2
     idx_lowcard  = BASE_EQ_SLOT + 3
     idx_boardgap = BASE_EQ_SLOT + 4
-    idx_preflop = BASE_EQ_SLOT + 5
+    idx_avg_rank = BASE_EQ_SLOT + 5
+    idx_preflop = BASE_EQ_SLOT + 6
 
     print("\n关键槽位（来自 encode_state 向量）:")
     print(f"  eq_flop     (idx {idx_eq_flop}):    {x[idx_eq_flop]:.6f}")
@@ -138,6 +139,7 @@ def show_stage(name: str, state: pkrs.State):
     print(f"  highcard    (idx {idx_highcard}):   {x[idx_highcard]:.6f}")
     print(f"  lowcard    (idx {idx_lowcard}):   {x[idx_lowcard]:.6f}")
     print(f"  boardgap    (idx {idx_boardgap}):   {x[idx_boardgap]:.6f}")
+    print(f"  avg_rank    (idx {idx_avg_rank}):   {x[idx_avg_rank]:.6f}")
     print(f"  preflop_eq  (idx {idx_preflop}):    {x[idx_preflop]:.6f}")
 
     print(f"\n末尾10个: {list(np.round(x[-10:], 6))}")

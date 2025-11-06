@@ -9,7 +9,7 @@ from src.core.hand_flushy_potential import hand_flushy_potential
 from src.core.highcard_on_board_norm import highcard_on_board_norm
 from src.core.lowcard_on_board_norm import lowcard_on_board_norm
 from src.core.board_gap_norm import board_gap_norm
-
+from src.core.avg_rank_on_board_norm import avg_rank_on_board_norm
 
 
 # === 可选：treys 用于 MC 兜底（不存在也不影响） ===
@@ -503,6 +503,16 @@ def encode_state(state, player_id=0):
             print(f"[WARN] board_gap_norm compute failed: {e}")
         board_gap = 0.0
     encoded.append(np.array([board_gap], dtype=np.float32))
+
+    # 11) board_gap（公共牌最高牌归一化：A = 1.0）
+    avg_rank = 0.0
+    try:
+        avg_rank = avg_rank_on_board_norm(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] avg_rank compute failed: {e}")
+        avg_rank = 0.0
+    encoded.append(np.array([avg_rank], dtype=np.float32))
 
 
 
