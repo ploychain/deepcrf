@@ -133,7 +133,7 @@ def show_stage(name: str, state: pkrs.State):
     print(f"  eq_turn     (idx {idx_eq_turn}):    {x[idx_eq_turn]:.6f}")
     print(f"  eq_river    (idx {idx_eq_river}):   {x[idx_eq_river]:.6f}")
     print(f"  straighty   (idx {idx_straighty}):  {x[idx_straighty]:.6f}")
-    print(f"  flushy      (idx {idx_flushy}):     {x[idx_flushy]:.6f}")
+    print(f"  flush      (idx {idx_flushy}):     {x[idx_flushy]:.6f}")
     print(f"  highcard    (idx {idx_highcard}):   {x[idx_highcard]:.6f}")
     print(f"  lowcard    (idx {idx_lowcard}):   {x[idx_lowcard]:.6f}")
     print(f"  preflop_eq  (idx {idx_preflop}):    {x[idx_preflop]:.6f}")
