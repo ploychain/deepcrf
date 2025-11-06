@@ -72,30 +72,38 @@ def _extract_ranks(board_cards) -> (List[int], bool):
 def _straighty_hint_single_variant(ranks: List[int],
                                    variant_min: int,
                                    variant_max: int) -> float:
-    """
-    在“某一种视角”（比如正常视角或 A→1 视角）下计算 straighty_hint。
-    ranks: 已去重 & 排序 的点数列表，如 [5,6,8]。
-    variant_min/variant_max: 该视角下允许的点数范围，例如：
-        - 正常视角：2..14
-        - 轮顺视角：1..13  （A 当 1，只负责 A2345..9TJQK）
-    """
     ranks = sorted(set(ranks))
 
-    # 少于 2 种点数，不可能有顺子结构
     if len(ranks) < 2:
         return 0.0
 
     rmin, rmax = ranks[0], ranks[-1]
 
-    # 必须在某个 5 连窗口内，否则顺子味直接视为 0
+    # ==========================================================
+    # 原逻辑：要求整体在 5 连窗口内，否则 0
+    # ==========================================================
     if rmax - rmin > 4:
-        return 0.0
+        # ✅ 新增补丁：检测局部连续段（比如 9-T-J）
+        cont_max = 1
+        cur = 1
+        for i in range(1, len(ranks)):
+            if ranks[i] == ranks[i - 1] + 1:
+                cur += 1
+                cont_max = max(cont_max, cur)
+            else:
+                cur = 1
 
-    # 安全防御：如果整个可用点数区间本身都不够 5 张，也无意义
+        # 如果发现至少 3 张连续，则给一个弱顺子味（0.3~0.5）
+        if cont_max >= 3:
+            base = (cont_max - 2) / 3.0  # 3连=0.33, 4连=0.66, 5连=1
+            return 0.3 + 0.2 * min(base, 1.0)
+        return 0.0
+    # ==========================================================
+
+    # 以下保持你原有逻辑不变
     if variant_max - variant_min + 1 < 5:
         return 0.0
 
-    # 1）计算相邻 gap 的“紧密度得分”
     score_raw = 0.0
     for i in range(len(ranks) - 1):
         d = ranks[i + 1] - ranks[i]
@@ -103,45 +111,26 @@ def _straighty_hint_single_variant(ranks: List[int],
             score_raw += 1.0
         elif d == 2:
             score_raw += 0.5
-        else:
-            # 差 3+ 视为断层，不加分
-            pass
 
     max_score = float(len(ranks) - 1)
     if max_score <= 0.0:
         return 0.0
 
-    # 连线紧密度：0~1
     tightness = score_raw / max_score
     tightness = max(0.0, min(1.0, tightness))
-
-    # 2）覆盖率：5 连窗口最多 5 种点数
     coverage = min(1.0, len(ranks) / 5.0)
 
-    # 3）多窗口因子（两头顺 > 单头顺）
-    # 统计所有合法起点 x，使得：
-    #   - 窗口 [x, x+4] 在 [variant_min, variant_max] 内
-    #   - 且该窗口完全覆盖当前 [rmin, rmax]
-    #
-    # 条件转化：
-    #   x <= rmin  且 x+4 >= rmax  ->  rmax-4 <= x <= rmin
-    #   同时 variant_min <= x <= variant_max-4
-    start_low  = max(variant_min, rmax - 4)
+    start_low = max(variant_min, rmax - 4)
     start_high = min(variant_max - 4, rmin)
     num_windows = max(0, start_high - start_low + 1)
 
-    # 理论最大的窗口数（如果不受牌面下/上边界限制）
-    span = rmax - rmin  # 已经 ≤ 4
-    denom = 5 - span    # span=0..4 -> denom=5..1
-    if denom <= 0:
-        window_factor = 0.0
-    else:
-        window_factor = num_windows / float(denom)
-
+    span = rmax - rmin
+    denom = 5 - span
+    window_factor = num_windows / float(denom) if denom > 0 else 0.0
     window_factor = max(0.0, min(1.0, window_factor))
 
-    # 综合评分
     return float(tightness * coverage * window_factor)
+
 
 
 def straighty_hint(board_cards) -> float:
