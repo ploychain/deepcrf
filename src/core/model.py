@@ -8,6 +8,7 @@ from src.core.hand_straighty_potential import hand_straighty_potential
 from src.core.hand_flushy_potential import hand_flushy_potential
 from src.core.highcard_on_board_norm import highcard_on_board_norm
 from src.core.lowcard_on_board_norm import lowcard_on_board_norm
+from src.core.board_gap_norm import board_gap_norm
 
 
 
@@ -492,6 +493,20 @@ def encode_state(state, player_id=0):
             print(f"[WARN] lowcard_on_board_norm compute failed: {e}")
         lowcard_norm = 0.0
     encoded.append(np.array([lowcard_norm], dtype=np.float32))
+
+    # 11) board_gap（公共牌最高牌归一化：A = 1.0）
+    board_gap = 0.0
+    try:
+        board_gap = board_gap_norm(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] board_gap_norm compute failed: {e}")
+        board_gap = 0.0
+    encoded.append(np.array([board_gap], dtype=np.float32))
+
+
+
+
 
 
     # 11) preflop_equity（最后一维；仅 Preflop 写入）
