@@ -2,12 +2,30 @@
 import pokers as pkrs
 from src.core.board_gap_norm import board_gap_norm
 
+def get_enums():
+    """自动获取 CardRank / CardSuit（兼容各种 pokers 版本）"""
+    rank_enum = None
+    suit_enum = None
+    for name in dir(pkrs):
+        if name.lower() in ("cardrank", "rank"):
+            rank_enum = getattr(pkrs, name)
+        if name.lower() in ("cardsuit", "suit"):
+            suit_enum = getattr(pkrs, name)
+    if rank_enum is None or suit_enum is None:
+        raise RuntimeError("未找到 CardRank / CardSuit 枚举，请检查 pokers 包结构。")
+    return rank_enum, suit_enum
+
+
 def make_card(rank_num, suit_num):
-    """
-    rank_num: 2~14  (2=2, 14=A)
-    suit_num: 0~3   (0=♠, 1=♥, 2=♦, 3=♣)
-    """
-    return pkrs.Card(rank=rank_num, suit=suit_num)
+    """通过枚举安全创建 Card"""
+    rank_enum, suit_enum = get_enums()
+    ranks = list(rank_enum)
+    suits = list(suit_enum)
+    # rank_num: 2~14  → index 从 0 开始偏移 +2
+    rank_obj = next((r for r in ranks if int(r) == rank_num), None)
+    suit_obj = suits[suit_num % len(suits)]
+    return pkrs.Card(rank=rank_obj, suit=suit_obj)
+
 
 def main():
     boards = [
@@ -22,8 +40,9 @@ def main():
     ]
 
     for b in boards:
-        desc = " ".join([f"{c.rank}-{c.suit}" for c in b])
+        desc = " ".join([f"{str(c.rank).split('.')[-1]}-{str(c.suit).split('.')[-1]}" for c in b])
         print(f"Board: {desc} -> board_gap_norm = {board_gap_norm(b):.4f}")
+
 
 if __name__ == "__main__":
     main()
