@@ -13,7 +13,7 @@ from src.core.avg_rank_on_board_norm import avg_rank_on_board_norm
 from src.core.paired_level import paired_level
 from src.core.straighty_hint import straighty_hint
 from src.core.flushy_hint import flushy_hint
-from src.core.flushy_hint import flush_on_board
+from src.core.flushy_hint import *
 
 
 
@@ -338,6 +338,30 @@ def encode_state(state, player_id=0):
     cur = np.zeros(num_players, dtype=np.float32); cur[state.current_player % num_players] = 1.0
     encoded.extend([btn, cur])
 
+    # 5.5) 英雄位置（UTG/MP/CO/BTN/SB/BB） + 当前活跃玩家数
+    # --------------------------------------------------------
+    hero_position_index = 0
+    try:
+        # hero 的座位号（假设 state.button 为庄家位置，从0开始循环）
+        # 按照标准6人桌位置顺序：UTG(庄家左手第一位)=0, MP=1, CO=2, BTN=3, SB=4, BB=5
+        # 实际位置 = (player_id - button - 1) % num_players
+        hero_position_index = (player_id - state.button - 1) % num_players
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] hero_position_index compute failed: {e}")
+        hero_position_index = 0
+
+    num_active_players = 0
+    try:
+        num_active_players = sum(1 for ps in state.players_state if getattr(ps, "active", False))
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] num_active_players compute failed: {e}")
+        num_active_players = 0
+
+    encoded.append(np.array([hero_position_index], dtype=np.float32))
+    encoded.append(np.array([num_active_players], dtype=np.float32))
+
     # 6) 每个玩家状态（6×4）
     for p in range(num_players):
         if p < len(state.players_state):
@@ -529,7 +553,7 @@ def encode_state(state, player_id=0):
         paired_level_c = 0.0
     encoded.append(np.array([paired_level_c], dtype=np.float32))
 
-    # 11) board_gap（公共牌最高牌归一化：A = 1.0）
+    # 11) s_hint（公共牌最高牌归一化：A = 1.0）
     s_hint = 0.0
     try:
         s_hint = straighty_hint(state.public_cards)
@@ -539,7 +563,7 @@ def encode_state(state, player_id=0):
         s_hint = 0.0
     encoded.append(np.array([s_hint], dtype=np.float32))
 
-    # 11) board_gap（公共牌最高牌归一化：A = 1.0）
+    # 11) f_hint（公共牌最高牌归一化：A = 1.0）
     f_hint = 0.0
     try:
         f_hint = flushy_hint(state.public_cards)
@@ -549,7 +573,7 @@ def encode_state(state, player_id=0):
         f_hint = 0.0
     encoded.append(np.array([f_hint], dtype=np.float32))
 
-    # 11) board_gap（公共牌最高牌归一化：A = 1.0）
+    # 11) f_board（公共牌最高牌归一化：A = 1.0）
     f_board = 0.0
     try:
         f_board = flush_on_board(state.public_cards)
@@ -559,6 +583,132 @@ def encode_state(state, player_id=0):
         f_board = 0.0
     encoded.append(np.array([f_board], dtype=np.float32))
 
+    monotone_v = 0.0
+    try:
+        monotone_v = monotone(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] monotone compute failed: {e}")
+        monotone_v = 0.0
+    encoded.append(np.array([monotone_v], dtype=np.float32))
+
+    two_tone_v = 0.0
+    try:
+        two_tone_v = two_tone(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] two_tone compute failed: {e}")
+        two_tone_v = 0.0
+    encoded.append(np.array([two_tone_v], dtype=np.float32))
+
+    rainbow_v = 0.0
+    try:
+        rainbow_v = rainbow(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] rainbow compute failed: {e}")
+        rainbow_v = 0.0
+    encoded.append(np.array([rainbow_v], dtype=np.float32))
+
+
+    # SPR：Stack-to-Pot Ratio（0~10），表示剩余筹码压力
+    spr_v = 0.0
+    try:
+        pot_size = state.pot
+        hero_state = state.players_state[player_id]
+        hero_stack = getattr(hero_state, "stake", 0.0)
+
+        # 所有仍在局内的对手筹码（取最短作为有效筹码的对手那一端）
+        opponent_stacks = [
+            getattr(ps, "stake", 0.0)
+            for i, ps in enumerate(state.players_state)
+            if i != player_id and getattr(ps, "active", False)
+        ]
+
+        if pot_size > 0 and opponent_stacks:
+            villain_stack = min(opponent_stacks)
+            spr_v = spr(float(hero_stack), float(villain_stack), float(pot_size))
+
+        if VERBOSE:
+            print(f"[SPR] hero_stack={hero_stack}, "
+                  f"min_opp_stack={min(opponent_stacks) if opponent_stacks else 0}, "
+                  f"pot={pot_size}, spr={spr_v:.3f}")
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] spr compute failed: {e}")
+        spr_v = 0.0
+
+    encoded.append(np.array([spr_v], dtype=np.float32))
+
+    flush_suits_count = 0
+    try:
+        flush_suits_count = board_flush_possible_suits(state.public_cards)
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] board_flush_possible_suits compute failed: {e}")
+        flush_suits_count = 0
+    encoded.append(np.array([flush_suits_count], dtype=np.float32))
+
+    # ==== implied_pot_odds_hint：当前听牌投资回报比估计 ====
+    implied_pot_odds_hint = 0.0
+    try:
+        pot_size = state.pot
+        hero_state = state.players_state[player_id]
+        hero_stack = getattr(hero_state, "stake", 0.0)
+
+        # 当前 hero 需要跟注多少（max_bet - hero 已下的 bet）
+        to_call = 0.0
+        try:
+            current_bet = max(ps.bet_chips for ps in state.players_state)
+            to_call = max(0.0, current_bet - hero_state.bet_chips)
+        except Exception:
+            to_call = 0.0
+
+        # 有效筹码（和 SPR 一样，用最短那一方）
+        opponent_stacks = [
+            getattr(ps, "stake", 0.0)
+            for i, ps in enumerate(state.players_state)
+            if i != player_id and getattr(ps, "active", False)
+        ]
+        villain_stack = min(opponent_stacks) if opponent_stacks else 0.0
+        effective_stack = min(hero_stack, villain_stack)
+
+        # ✅ 当前阶段的 equity：而不是 max(...)
+        #    用你前面算好的 raw_flop / raw_turn / raw_river + stage_now
+        if stage_now == STAGE_FLOP:
+            current_equity = float(raw_flop)
+        elif stage_now == STAGE_TURN:
+            current_equity = float(raw_turn)
+        elif stage_now == STAGE_RIVER:
+            current_equity = float(raw_river)
+        else:
+            current_equity = 0.0  # Preflop 或未知阶段就当 0
+
+        alpha = 0.3  # 命中之后，期望还能从有效筹码中再赢到 alpha 部分
+        implied_pot = pot_size + to_call + alpha * effective_stack
+
+        if implied_pot > 0 and to_call > 0 and current_equity > 0:
+            # 所需 equity（含 implied odds）
+            implied_pot_odds = to_call / implied_pot  # C / (P + C + implied)
+
+            # 性价比比值：equity / required_equity
+            ratio = current_equity / implied_pot_odds if implied_pot_odds > 0 else 0.0
+
+            # 压缩到 0~1：ratio=1 → 0.5，ratio>=2 → ~1
+            implied_pot_odds_hint = max(0.0, min(1.0, ratio / 2.0))
+        else:
+            implied_pot_odds_hint = 0.0
+
+        if VERBOSE:
+            print(f"[IMPLIED_POT_ODDS] stage={stage_now}, eq={current_equity:.3f}, "
+                  f"to_call={to_call:.2f}, pot={pot_size:.2f}, eff_stack={effective_stack:.2f}, "
+                  f"hint={implied_pot_odds_hint:.3f}")
+    except Exception as e:
+        if VERBOSE:
+            print(f"[WARN] implied_pot_odds_hint compute failed: {e}")
+        implied_pot_odds_hint = 0.0
+
+    encoded.append(np.array([implied_pot_odds_hint], dtype=np.float32))
 
 
 
