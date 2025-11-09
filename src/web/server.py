@@ -20,7 +20,7 @@ def discover_model_paths():
     """扫描常见目录获取可用模型路径"""
     candidates = []
     search_dirs = [
-        "fix_models3",
+        "models_v1",
         # "models/checkpoints",
         # "flagship_models",
         # "flagship_models/first",
